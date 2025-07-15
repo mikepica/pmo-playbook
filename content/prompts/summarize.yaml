@@ -1,0 +1,5 @@
+title: "Summarize Content"
+description: "Generate a concise summary of the selected documents"
+model: "gpt-4"
+prompt: "Please provide a concise summary of the following content, highlighting the key points and main themes:"
+defaultFiles: ["sample.md"]
