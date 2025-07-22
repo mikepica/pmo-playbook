@@ -1,67 +1,42 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import TabView from '@/components/TabView';
-import MarkdownViewer from '@/components/MarkdownViewer';
-import ChatInterface from '@/components/ChatInterface';
-import PromptButtons from '@/components/PromptButtons';
+import { useState } from 'react';
+import SOPTabs from '@/components/SOPTabs';
+import MarkdownViewerDB from '@/components/MarkdownViewerDB';
+import ChatInterfaceAI from '@/components/ChatInterfaceAI';
 
 export default function Home() {
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [selectedSOP, setSelectedSOP] = useState<string | null>(null);
 
-  const handleFileSelect = (filename: string) => {
-    setSelectedFile(filename);
-    if (!selectedFiles.includes(filename)) {
-      setSelectedFiles([filename]);
-    }
+  const handleSOPSelect = (sopId: string) => {
+    setSelectedSOP(sopId);
   };
 
-  const handleFilesLoaded = (files: string[]) => {
-    // Auto-select the first file if none is selected
-    if (files.length > 0 && !selectedFile) {
-      const firstFile = files[0];
-      setSelectedFile(firstFile);
+  const handleSOPsLoaded = (sops: any[]) => {
+    // Auto-select the first SOP if none is selected
+    if (sops.length > 0 && !selectedSOP) {
+      const firstSOP = sops[0];
+      setSelectedSOP(firstSOP.id);
     }
-    // Auto-select all files for AI context by default
-    if (files.length > 0 && selectedFiles.length === 0) {
-      setSelectedFiles(files);
-    }
-  };
-
-  const handlePromptSelect = (prompt: string, files: string[]) => {
-    setSelectedFiles(files);
-    // This would trigger the chat interface to send the prompt
-  };
-
-  const handleFileOverride = (files: string[]) => {
-    setSelectedFiles(files);
   };
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
-      <TabView
-        selectedFile={selectedFile}
-        onFileSelect={handleFileSelect}
-        onFilesLoaded={handleFilesLoaded}
-        selectedFiles={selectedFiles}
-        onFilesChange={setSelectedFiles}
+      <SOPTabs
+        selectedSOP={selectedSOP}
+        onSOPSelect={handleSOPSelect}
+        onSOPsLoaded={handleSOPsLoaded}
       />
       
       <div className="flex-1 flex">
+        {/* SOP Viewer */}
         <div className="flex-1 flex flex-col">
-          <MarkdownViewer selectedFile={selectedFile} />
+          <MarkdownViewerDB selectedSOP={selectedSOP} />
         </div>
         
-        <div className="w-96 flex flex-col" style={{ width: '72rem' }}>
-          <PromptButtons
-            onPromptSelect={handlePromptSelect}
-            onFileOverride={handleFileOverride}
-          />
-          <ChatInterface
-            selectedFiles={selectedFiles}
-            onFilesChange={setSelectedFiles}
-          />
+        {/* AI Chat Interface */}
+        <div className="w-[500px] flex flex-col border-l border-gray-300">
+          <ChatInterfaceAI />
         </div>
       </div>
     </div>

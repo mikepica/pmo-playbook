@@ -1,62 +1,144 @@
 import { NextResponse } from 'next/server';
-import { OpenAI } from 'openai';
-import { readFile } from 'fs/promises';
-import path from 'path';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { connectToDatabase } from '@/lib/mongodb';
+import { selectBestSOP, generateAnswer } from '@/lib/ai-sop-selection';
+import ChatHistory from '@/models/ChatHistory';
+import ChangeProposal from '@/models/ChangeProposal';
 
 export async function POST(request: Request) {
   try {
-    const { message, files, isPrompt } = await request.json();
+    const { message, sessionId } = await request.json();
+
+    if (!message || !message.trim()) {
+      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
-    let context = '';
-    
-    // Load markdown files for context
-    if (files && files.length > 0) {
-      const fileContents = await Promise.all(
-        files.map(async (filename: string) => {
-          try {
-            const filePath = path.join(process.cwd(), 'content', 'markdown', filename);
-            const content = await readFile(filePath, 'utf8');
-            return `--- ${filename} ---\n${content}\n`;
-          } catch (error) {
-            console.error(`Failed to read file ${filename}:`, error);
-            return `--- ${filename} ---\nError: Could not read file\n`;
-          }
-        })
-      );
-      
-      context = fileContents.join('\n');
+    // Connect to database
+    await connectToDatabase();
+
+    // Generate or use provided session ID
+    const currentSessionId = sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Step A: Tool Selection - AI selects the most relevant SOP
+    console.log('Step A: Selecting best SOP for query:', message);
+    const sopSelection = await selectBestSOP(message);
+    console.log('Selected SOP:', sopSelection);
+
+    // Step B: Answer Generation - AI generates response using selected SOP
+    console.log('Step B: Generating answer using SOP:', sopSelection.selectedSopId);
+    const answerResult = await generateAnswer(message, sopSelection.selectedSopId);
+    console.log('Generated answer length:', answerResult.answer.length);
+
+    // Create chat history entry
+    const chatEntry = {
+      sessionId: currentSessionId,
+      messages: [
+        {
+          role: 'user' as const,
+          content: message,
+          timestamp: new Date()
+        },
+        {
+          role: 'assistant' as const,
+          content: answerResult.answer,
+          timestamp: new Date(),
+          selectedSopId: sopSelection.selectedSopId,
+          confidence: sopSelection.confidence
+        }
+      ],
+      metadata: {
+        userAgent: request.headers.get('user-agent') || undefined
+      },
+      startedAt: new Date()
+    };
+
+    // Save chat history
+    try {
+      await ChatHistory.create(chatEntry);
+    } catch (historyError) {
+      console.warn('Failed to save chat history:', historyError);
+      // Continue processing even if history save fails
     }
 
-    // Build the prompt
-    const systemPrompt = `You are a helpful AI assistant that can analyze and discuss the provided markdown documents. ${
-      context ? `Here are the documents for reference:\n\n${context}` : 'No documents have been provided.'
-    }`;
+    // Create change proposal if suggested
+    if (answerResult.suggestedChange) {
+      try {
+        const changeProposal = {
+          sopId: sopSelection.selectedSopId,
+          humanSopId: undefined, // Will be resolved in the model
+          triggerQuery: message,
+          conversationContext: {
+            sessionId: currentSessionId,
+            messages: [
+              { role: 'user', content: message }
+            ],
+            timestamp: new Date()
+          },
+          proposedChange: {
+            section: answerResult.suggestedChange.section,
+            originalContent: answerResult.suggestedChange.section, // Placeholder
+            suggestedContent: answerResult.suggestedChange.change,
+            changeType: 'clarification' as const,
+            rationale: answerResult.suggestedChange.rationale
+          },
+          metrics: {
+            confidenceScore: sopSelection.confidence,
+            similarProposalsCount: 0,
+            affectedUsersCount: 1
+          }
+        };
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: message }
-      ],
-      temperature: 0.7,
-      max_tokens: 1000,
+        await ChangeProposal.create(changeProposal);
+        console.log('Change proposal created for SOP:', sopSelection.selectedSopId);
+      } catch (proposalError) {
+        console.warn('Failed to create change proposal:', proposalError);
+        // Continue processing even if proposal creation fails
+      }
+    }
+
+    // Return response with full attribution
+    return NextResponse.json({
+      response: answerResult.answer,
+      sessionId: currentSessionId,
+      attribution: {
+        selectedSOP: {
+          sopId: sopSelection.selectedSopId,
+          title: answerResult.sourceInfo.title,
+          phase: answerResult.sourceInfo.phase
+        },
+        confidence: sopSelection.confidence,
+        reasoning: sopSelection.reasoning
+      },
+      suggestedChange: answerResult.suggestedChange ? {
+        detected: true,
+        section: answerResult.suggestedChange.section
+      } : null
     });
 
-    const response = completion.choices[0]?.message?.content || 'No response generated';
-
-    return NextResponse.json({ response });
   } catch (error: any) {
-    console.error('OpenAI API error:', error);
+    console.error('Chat API error:', error);
+    
+    // Return user-friendly error based on error type
+    if (error.message?.includes('No SOPs available')) {
+      return NextResponse.json({ 
+        error: 'No Standard Operating Procedures are available. Please contact your administrator.',
+        code: 'NO_SOPS_AVAILABLE'
+      }, { status: 503 });
+    }
+    
+    if (error.message?.includes('OpenAI')) {
+      return NextResponse.json({ 
+        error: 'AI service temporarily unavailable. Please try again.',
+        code: 'AI_SERVICE_ERROR'
+      }, { status: 503 });
+    }
+    
     return NextResponse.json({ 
-      error: error.message || 'Failed to process chat request' 
+      error: 'An unexpected error occurred. Please try again.',
+      code: 'INTERNAL_ERROR'
     }, { status: 500 });
   }
 }

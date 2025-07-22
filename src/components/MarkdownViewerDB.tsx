@@ -3,46 +3,67 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { FileText } from 'lucide-react';
+import { FileText, Database } from 'lucide-react';
 
-
-interface MarkdownViewerProps {
-  selectedFile: string | null;
+interface MarkdownViewerDBProps {
+  selectedSOP: string | null;
 }
 
-export default function MarkdownViewer({ selectedFile }: MarkdownViewerProps) {
+export default function MarkdownViewerDB({ selectedSOP }: MarkdownViewerDBProps) {
   const [content, setContent] = useState('');
+  const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
+  const [metadata, setMetadata] = useState<{
+    phase?: number;
+    version?: number;
+    updatedAt?: string;
+  }>({});
 
   useEffect(() => {
-    if (!selectedFile) {
+    if (!selectedSOP) {
       setContent('');
+      setTitle('');
+      setMetadata({});
       return;
     }
 
     const fetchContent = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/content?filename=${selectedFile}&type=markdown`);
+        const response = await fetch(`/api/content-db?sopId=${selectedSOP}&type=human`);
         const data = await response.json();
-        setContent(data.content || '');
+        
+        if (response.ok) {
+          setContent(data.content || '');
+          setTitle(data.title || selectedSOP);
+          setMetadata({
+            phase: data.phase,
+            version: data.version,
+            updatedAt: data.updatedAt
+          });
+        } else {
+          setContent(`Error: ${data.error || 'Failed to load SOP'}`);
+          setTitle('Error');
+        }
       } catch (error) {
         console.error('Failed to fetch content:', error);
-        setContent('Error loading file content');
+        setContent('Error loading SOP content');
+        setTitle('Error');
       } finally {
         setLoading(false);
       }
     };
 
     fetchContent();
-  }, [selectedFile]);
+  }, [selectedSOP]);
 
-  if (!selectedFile) {
+  if (!selectedSOP) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white">
         <div className="text-center text-gray-500">
-          <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <p>Select a markdown file to view its content</p>
+          <Database className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+          <p>Select an SOP to view its content</p>
+          <p className="text-sm mt-2">Content loaded from MongoDB</p>
         </div>
       </div>
     );
@@ -64,7 +85,16 @@ export default function MarkdownViewer({ selectedFile }: MarkdownViewerProps) {
     <div className="flex-1 p-6 bg-white overflow-auto">
       <div className="max-w-4xl mx-auto">
         <div className="mb-4 pb-2 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-800">{selectedFile}</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              <span>Phase {metadata.phase}</span>
+              <span>Version {metadata.version}</span>
+              {metadata.updatedAt && (
+                <span>Updated: {new Date(metadata.updatedAt).toLocaleDateString()}</span>
+              )}
+            </div>
+          </div>
         </div>
         
         <div className="max-w-none text-black">

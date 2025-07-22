@@ -8,9 +8,14 @@
     "start": "next start",
     "lint": "next lint",
     "test-db": "node scripts/test-db.js",
-    "test-models": "tsx scripts/test-models.ts"
+    "test-models": "tsx scripts/test-models.ts",
+    "migrate-sops": "tsx scripts/migrate-sops.ts",
+    "verify-migration": "tsx scripts/verify-migration.ts",
+    "demo-sops": "tsx scripts/demo-sop-queries.ts",
+    "test-ai": "tsx scripts/test-ai-selection.ts"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
     "@types/js-yaml": "^4.0.9",
     "dotenv": "^17.2.0",
     "js-yaml": "^4.1.0",
