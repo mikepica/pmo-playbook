@@ -138,7 +138,8 @@ The confidence should be a number between 0 and 1, where 1 means you're complete
  */
 export async function generateAnswer(
   userQuery: string, 
-  selectedSopId: string
+  selectedSopId: string,
+  conversationContext?: Array<{role: 'user' | 'assistant', content: string}>
 ): Promise<AnswerGenerationResult> {
   try {
     // Get the full SOP content
@@ -149,6 +150,15 @@ export async function generateAnswer(
 
     // Generate AI context from the SOP
     const sopContext = fullSOP.generateAIContext();
+
+    // Build conversation context if provided
+    let conversationHistory = '';
+    if (conversationContext && conversationContext.length > 0) {
+      conversationHistory = '\n\nConversation History (for context only):\n' + 
+        conversationContext.slice(-4).map(msg => // Only include last 4 messages
+          `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
+        ).join('\n') + '\n';
+    }
 
     const prompt = `You are a PMO assistant helping with project management questions. Use the information from the following Standard Operating Procedure to answer the user's question comprehensively and accurately.
 
@@ -172,17 +182,18 @@ ${sopContext.sections.rolesResponsibilities.map(role =>
 ).join('\n\n')}
 
 Tools & Templates:
-${sopContext.sections.toolsTemplates.map(tool => `- ${tool}`).join('\n')}
+${sopContext.sections.toolsTemplates.map(tool => `- ${tool}`).join('\n')}${conversationHistory}
 
-User's Question: "${userQuery}"
+User's Current Question: "${userQuery}"
 
 Instructions:
-1. Provide a helpful, detailed answer based on the SOP information
-2. Include specific steps, deliverables, or guidance from the SOP
-3. If relevant templates or tools are mentioned, include them in your response
-4. If the SOP doesn't fully address the question, acknowledge the limitation
-5. After answering, analyze if the user's question highlights a gap or ambiguity in the SOP
-6. Respond in JSON format:
+1. Consider the conversation context (if any) to provide relevant follow-up responses
+2. Provide a helpful, detailed answer based on the SOP information
+3. Include specific steps, deliverables, or guidance from the SOP
+4. If relevant templates or tools are mentioned, include them in your response
+5. If the SOP doesn't fully address the question, acknowledge the limitation
+6. After answering, analyze if the user's question highlights a gap or ambiguity in the SOP
+7. Respond in JSON format:
 
 {
   "answer": "Your detailed response here",

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Send, Bot, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Send, Bot, User, RotateCcw } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -28,6 +28,76 @@ export default function ChatInterfaceAI() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  // Initialize session and load history
+  useEffect(() => {
+    initializeSession();
+  }, []);
+
+  const generateSessionId = () => {
+    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  };
+
+  const initializeSession = async (newSession = false) => {
+    // Get or create session ID from localStorage
+    let storedSessionId = localStorage.getItem('pmo-chat-session');
+    
+    if (!storedSessionId || newSession) {
+      storedSessionId = generateSessionId();
+      localStorage.setItem('pmo-chat-session', storedSessionId);
+    }
+
+    setSessionId(storedSessionId);
+    
+    if (newSession) {
+      // Clear messages for new session
+      setMessages([]);
+      setHistoryLoaded(true);
+      return;
+    }
+    
+    // Load chat history for this session
+    try {
+      const response = await fetch(`/api/chat-history?sessionId=${storedSessionId}`);
+      const data = await response.json();
+      
+      if (data.exists && data.messages) {
+        const formattedMessages: Message[] = data.messages.map((msg: {
+          role: string;
+          content: string;
+          timestamp: string;
+          selectedSopId?: string;
+          confidence?: number;
+        }, index: number) => ({
+          id: `${Date.now()}-${index}`,
+          type: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.timestamp),
+          attribution: msg.selectedSopId ? {
+            selectedSOP: {
+              sopId: msg.selectedSopId,
+              title: `Phase ${msg.selectedSopId.split('-')[1]} SOP`,
+              phase: parseInt(msg.selectedSopId.split('-')[1])
+            },
+            confidence: msg.confidence || 0.9,
+            reasoning: 'From chat history'
+          } : undefined
+        }));
+        
+        setMessages(formattedMessages);
+      }
+    } catch (error) {
+      console.warn('Failed to load chat history:', error);
+      // Continue without history - user can still start new conversation
+    }
+    
+    setHistoryLoaded(true);
+  };
+
+  const startNewConversation = () => {
+    initializeSession(true);
+  };
 
   const sendMessage = async (message: string) => {
     if (!message.trim()) return;
@@ -103,9 +173,20 @@ export default function ChatInterfaceAI() {
     <div className="flex-1 flex flex-col bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center">
-          <Bot className="w-5 h-5 mr-2 text-blue-600" />
-          <h3 className="text-lg font-medium">AI PMO Assistant</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <Bot className="w-5 h-5 mr-2 text-blue-600" />
+            <h3 className="text-lg font-medium">AI PMO Assistant</h3>
+          </div>
+          {messages.length > 0 && (
+            <button
+              onClick={startNewConversation}
+              className="flex items-center px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              New Conversation
+            </button>
+          )}
         </div>
         <p className="text-sm text-gray-600 mt-1">
           Ask questions about project management - I'll automatically find the right SOP
@@ -114,15 +195,22 @@ export default function ChatInterfaceAI() {
 
       {/* Messages */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
-        {messages.length === 0 && (
+        {!historyLoaded && (
+          <div className="text-center text-gray-500 py-8">
+            <Bot className="w-12 h-12 mx-auto mb-4 text-gray-300 animate-pulse" />
+            <p>Loading conversation history...</p>
+          </div>
+        )}
+        
+        {historyLoaded && messages.length === 0 && (
           <div className="text-center text-gray-500 py-8">
             <Bot className="w-12 h-12 mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium mb-2">Ready to Help!</p>
             <p>Ask me anything about project management:</p>
             <div className="mt-4 space-y-1 text-sm">
-              <p>• "How do I create a project charter?"</p>
-              <p>• "What's needed for project closure?"</p>
-              <p>• "How do I manage project risks?"</p>
+              <p>• &ldquo;How do I create a project charter?&rdquo;</p>
+              <p>• &ldquo;What&rsquo;s needed for project closure?&rdquo;</p>
+              <p>• &ldquo;How do I manage project risks?&rdquo;</p>
             </div>
           </div>
         )}
