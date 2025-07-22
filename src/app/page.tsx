@@ -28,14 +28,14 @@ export default function Home() {
         onSOPsLoaded={handleSOPsLoaded}
       />
       
-      <div className="flex-1 flex">
+      <div className="flex-1 flex overflow-hidden">
         {/* SOP Viewer */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden h-full">
           <MarkdownViewerDB selectedSOP={selectedSOP} />
         </div>
         
-        {/* AI Chat Interface */}
-        <div className="w-[500px] flex flex-col border-l border-gray-300">
+        {/* AI Chat Interface - Doubled width from 500px to 1000px */}
+        <div className="w-[1000px] flex flex-col border-l border-gray-300 overflow-hidden h-full">
           <ChatInterfaceAI />
         </div>
       </div>

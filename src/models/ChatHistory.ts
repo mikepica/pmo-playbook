@@ -10,6 +10,8 @@ export interface IMessage {
 
 export interface IChatHistory extends Document {
   sessionId: string;
+  sessionName?: string;
+  summary?: string;
   userId?: string;
   messages: IMessage[];
   sopUsage: {
@@ -28,6 +30,7 @@ export interface IChatHistory extends Document {
   status: 'active' | 'completed' | 'abandoned';
   startedAt: Date;
   endedAt?: Date;
+  lastActive?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -84,6 +87,14 @@ const ChatHistorySchema = new Schema<IChatHistory>({
     index: true,
     description: 'Unique session identifier'
   },
+  sessionName: {
+    type: String,
+    description: 'User-editable name for the session'
+  },
+  summary: {
+    type: String,
+    description: 'AI-generated summary of the conversation'
+  },
   userId: {
     type: String,
     index: true,
@@ -131,7 +142,13 @@ const ChatHistorySchema = new Schema<IChatHistory>({
     type: Date,
     default: Date.now
   },
-  endedAt: Date
+  endedAt: Date,
+  lastActive: {
+    type: Date,
+    default: Date.now,
+    index: true,
+    description: 'Last time this session was viewed or had activity'
+  }
 }, {
   timestamps: true,
   collection: 'chat_histories'

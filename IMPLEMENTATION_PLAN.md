@@ -16,7 +16,7 @@ After completing each step:
 - [x] Step 2.1: UI Consolidation and AI Preparation (Added)
 - [x] Step 3: Enhance AI Integration for SOP Selection
 - [x] Step 4: Implement Chat History and Memory
-- [ ] Step 5: Build Change Proposal System
+- [x] Step 5: Build Change Proposal System
 - [ ] Step 6: Create Admin Dashboard
 - [ ] Step 7: Implement Proposal Approval Workflow
 - [ ] Step 8: Enhance UI/UX and Add Features
@@ -278,11 +278,11 @@ const { answer, suggestedChange } = await generateAnswer(userQuery, fullSOP);
 
 ---
 
-## Step 5: Build Change Proposal System
+## Step 5: Build Change Proposal System ✅
 
 ### Tasks:
-1. Enhance answer generation to detect gaps
-2. Create `ChangeProposal` when gaps identified:
+1. ✅ Enhance answer generation to detect gaps
+2. ✅ Create `ChangeProposal` when gaps identified:
    ```typescript
    {
      sopId: "SOP-001",
@@ -294,14 +294,87 @@ const { answer, suggestedChange } = await generateAnswer(userQuery, fullSOP);
      createdAt: Date
    }
    ```
-3. Create API endpoint `/api/proposals/` for CRUD operations
-4. Auto-generate proposals during chat interactions
+3. ✅ Create API endpoint `/api/proposals/` for CRUD operations
+4. ✅ Auto-generate proposals during chat interactions
+
+### Implementation Details:
+
+#### API Endpoints Created:
+- **GET `/api/proposals`**: List all proposals with filtering (status, priority, sopId)
+- **POST `/api/proposals`**: Create new proposal with duplicate detection
+- **GET `/api/proposals/[id]`**: Get individual proposal details
+- **PATCH `/api/proposals/[id]`**: Update proposal (approve/reject/review)
+- **DELETE `/api/proposals/[id]`**: Archive proposal
+
+#### Change Proposal Features:
+- **Automatic Gap Detection**: AI analyzes if SOP fully addresses user question
+- **Smart Duplicate Prevention**: Checks for similar proposals in last 24 hours
+- **Metric Tracking**: Updates affected user count instead of creating duplicates
+- **Priority Auto-Assignment**: Based on confidence score and affected users
+- **Change Type Classification**: Automatically determines addition/modification/deletion/clarification
+- **Context Preservation**: Stores conversation history with proposals
+
+#### Integration with Chat System:
+1. **AI Gap Detection**: In `generateAnswer()`, AI identifies when SOP lacks information
+2. **Proposal Generation**: Chat API automatically creates proposals when gaps detected
+3. **HumanSOP Linking**: Properly links proposals to source SOP documents
+4. **Session Context**: Includes last 5 messages for proposal context
+
+### Code Changes:
+1. **Created `/api/proposals/route.ts`**:
+   - Full CRUD operations for change proposals
+   - Duplicate detection logic
+   - Tag extraction for better organization
+   - Pagination support
+
+2. **Created `/api/proposals/[id]/route.ts`**:
+   - Individual proposal management
+   - Approval/rejection workflow
+   - Review history tracking
+
+3. **Enhanced `/api/chat/route.ts`**:
+   - Integrated proposal creation with chat flow
+   - Added duplicate checking before creating new proposals
+   - Implemented change type determination logic
+   - Proper humanSopId resolution from AgentSOP
+
+4. **Added User-Initiated Gap Reporting** (Advanced from Step 8):
+   - **Report Gap Button**: Appears on AI responses for user feedback
+   - **Gap Description Modal**: Users explain what information was missing
+   - **High-Priority Proposals**: User reports create 90% confidence proposals
+   - **Context Preservation**: Includes conversation context for admin review
+
+5. **Updated `src/components/ChatInterfaceAI.tsx`**:
+   - Added "Report Gap" button on AI responses
+   - Implemented gap reporting modal with description field
+   - Integrated with proposals API for user-initiated submissions
+   - Added confirmation message after successful report
+
+6. **Created test scripts**:
+   - `scripts/test-proposals.ts`: API testing suite
+   - `scripts/check-proposals.ts`: Database verification tool
 
 ### Verification:
-- [ ] Proposals created when SOPs lack information
-- [ ] Proposals include sufficient context
-- [ ] Can query proposals by status
-- [ ] No duplicate proposals for same issue
+- ✅ Proposals created when SOPs lack information - **AI identifies gaps and creates proposals**
+- ✅ Proposals include sufficient context - **Stores trigger query, conversation history, and rationale**
+- ✅ Can query proposals by status - **API supports filtering by status, priority, and sopId**
+- ✅ No duplicate proposals for same issue - **24-hour duplicate detection with metric updates**
+- ✅ User-initiated gap reporting - **Manual feedback mechanism implemented ahead of schedule**
+
+### Key Features Beyond Original Scope:
+- **User Feedback Integration**: Implemented manual change proposal submission from Step 8
+- **Two-Pronged Gap Detection**: Both AI automatic and user-initiated reporting
+- **Enhanced User Experience**: Users can explain exactly what information was missing
+- **Higher Priority for User Reports**: 90% confidence for user-reported gaps
+
+**Status**: ✅ Completed on 2025-01-23
+- Full change proposal system with both automatic and manual gap detection
+- User-initiated gap reporting added (advanced from Step 8)
+- Smart duplicate prevention ensures efficient proposal management
+- API endpoints ready for admin dashboard integration
+- Proposals generated both automatically and through user feedback
+- Priority auto-assignment based on impact metrics and report source
+- Ready for Step 6: Create Admin Dashboard
 
 ---
 
@@ -366,17 +439,22 @@ Proposal Approved → Update HumanSOP → Regenerate AgentSOP → Update Status 
 
 ### Tasks:
 1. Improve chat interface:
-   - Show which SOP was used for each answer
-   - Add confidence indicators
-   - Implement typing indicators
+   - ✅ Show which SOP was used for each answer (Completed in Step 3)
+   - ✅ Add confidence indicators (Completed in Step 3)
+   - ✅ Implement typing indicators (Completed in Step 3)
 2. Add SOP browser:
    - View all available SOPs
    - Search within SOPs
    - Preview SOP content
 3. Create feedback mechanism:
    - Thumbs up/down on responses
-   - Manual change proposal submission
+   - ✅ Manual change proposal submission (Completed in Step 5)
 4. Add export functionality for conversations
+
+### Already Completed (Advanced from this step):
+- **Manual Change Proposal Submission**: Implemented in Step 5 with "Report Gap" button
+- **SOP Attribution Display**: Shows which SOP was used with confidence scores
+- **Typing Indicators**: Loading animation while AI processes requests
 
 ### New Components:
 - `SOPBrowser`: Browse and search all SOPs
@@ -384,9 +462,9 @@ Proposal Approved → Update HumanSOP → Regenerate AgentSOP → Update Status 
 - `ExportDialog`: Export chat history
 
 ### Verification:
-- [ ] SOP attribution visible in chat
+- ✅ SOP attribution visible in chat (Completed in Step 3)
 - [ ] Can browse all SOPs independently
-- [ ] Feedback successfully creates proposals
+- ✅ Feedback successfully creates proposals (Completed in Step 5)
 - [ ] Export generates valid markdown/PDF
 
 ---

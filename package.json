@@ -12,7 +12,9 @@
     "migrate-sops": "tsx scripts/migrate-sops.ts",
     "verify-migration": "tsx scripts/verify-migration.ts",
     "demo-sops": "tsx scripts/demo-sop-queries.ts",
-    "test-ai": "tsx scripts/test-ai-selection.ts"
+    "test-ai": "tsx scripts/test-ai-selection.ts",
+    "test-proposals": "tsx scripts/test-proposals.ts",
+    "check-proposals": "tsx scripts/check-proposals.ts"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.11",

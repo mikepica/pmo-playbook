@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Send, Bot, User, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, Trash2 } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -23,16 +23,48 @@ interface Message {
   };
 }
 
+interface Session {
+  sessionId: string;
+  name: string;
+  summary: string;
+  messageCount: number;
+  startedAt: Date;
+  lastActive: Date;
+  isActive: boolean;
+}
+
 export default function ChatInterfaceAI() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [reportingGap, setReportingGap] = useState<string | null>(null);
+  const [gapDescription, setGapDescription] = useState('');
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [showSessionDropdown, setShowSessionDropdown] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingSessionName, setEditingSessionName] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Initialize session and load history
   useEffect(() => {
     initializeSession();
+    loadSessions();
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowSessionDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const generateSessionId = () => {
@@ -96,7 +128,156 @@ export default function ChatInterfaceAI() {
   };
 
   const startNewConversation = () => {
+    // Save current session before starting new
+    if (sessionId && messages.length > 0) {
+      updateSessionLastActive(sessionId);
+    }
     initializeSession(true);
+    loadSessions();
+  };
+
+  const loadSessions = async () => {
+    try {
+      const response = await fetch(`/api/sessions?limit=20&currentSessionId=${sessionId || ''}`);
+      const data = await response.json();
+      
+      if (data.sessions) {
+        setSessions(data.sessions.map((s: any) => ({
+          ...s,
+          startedAt: new Date(s.startedAt),
+          lastActive: new Date(s.lastActive)
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+    }
+  };
+
+  const switchToSession = async (targetSessionId: string) => {
+    if (targetSessionId === sessionId) return;
+    
+    // Save current session
+    if (sessionId && messages.length > 0) {
+      await updateSessionLastActive(sessionId);
+    }
+    
+    // Load the selected session
+    localStorage.setItem('pmo-chat-session', targetSessionId);
+    setSessionId(targetSessionId);
+    setMessages([]);
+    setHistoryLoaded(false);
+    
+    // Load chat history for the selected session
+    try {
+      const response = await fetch(`/api/chat-history?sessionId=${targetSessionId}`);
+      const data = await response.json();
+      
+      if (data.exists && data.messages) {
+        const formattedMessages: Message[] = data.messages.map((msg: {
+          role: string;
+          content: string;
+          timestamp: string;
+          selectedSopId?: string;
+          confidence?: number;
+        }, index: number) => ({
+          id: `${Date.now()}-${index}`,
+          type: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.timestamp),
+          attribution: msg.selectedSopId ? {
+            selectedSOP: {
+              sopId: msg.selectedSopId,
+              title: `Phase ${msg.selectedSopId.split('-')[1]} SOP`,
+              phase: parseInt(msg.selectedSopId.split('-')[1])
+            },
+            confidence: msg.confidence || 0.9,
+            reasoning: 'From chat history'
+          } : undefined
+        }));
+        
+        setMessages(formattedMessages);
+      }
+      
+      // Update lastActive for the loaded session
+      await updateSessionLastActive(targetSessionId);
+    } catch (error) {
+      console.warn('Failed to load session:', error);
+    }
+    
+    setHistoryLoaded(true);
+    setShowSessionDropdown(false);
+    loadSessions();
+  };
+
+  const updateSessionLastActive = async (sessionIdToUpdate: string) => {
+    try {
+      await fetch('/api/sessions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionIdToUpdate,
+          updateLastActive: true
+        })
+      });
+    } catch (error) {
+      console.error('Failed to update session lastActive:', error);
+    }
+  };
+
+  const renameSession = async (sessionIdToRename: string, newName: string) => {
+    try {
+      const response = await fetch('/api/sessions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionIdToRename,
+          sessionName: newName
+        })
+      });
+      
+      if (response.ok) {
+        setEditingSessionId(null);
+        setEditingSessionName('');
+        loadSessions();
+      }
+    } catch (error) {
+      console.error('Failed to rename session:', error);
+    }
+  };
+
+  const deleteSession = async (sessionIdToDelete: string) => {
+    if (confirm('Are you sure you want to delete this conversation?')) {
+      try {
+        const response = await fetch(`/api/sessions?sessionId=${sessionIdToDelete}`, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          // If deleting current session, start a new one
+          if (sessionIdToDelete === sessionId) {
+            initializeSession(true);
+          }
+          loadSessions();
+        }
+      } catch (error) {
+        console.error('Failed to delete session:', error);
+      }
+    }
+  };
+
+  const formatSessionDate = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    return date.toLocaleDateString();
   };
 
   const sendMessage = async (message: string) => {
@@ -169,8 +350,72 @@ export default function ChatInterfaceAI() {
     sendMessage(input);
   };
 
+  const reportGap = async (messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (!message || !message.attribution) return;
+
+    setReportingGap(messageId);
+  };
+
+  const submitGapReport = async () => {
+    if (!reportingGap || !gapDescription.trim()) return;
+
+    const message = messages.find(m => m.id === reportingGap);
+    if (!message || !message.attribution) return;
+
+    try {
+      // Find the user's original question
+      const messageIndex = messages.findIndex(m => m.id === reportingGap);
+      const userQuestion = messages[messageIndex - 1]?.content || 'Unknown question';
+
+      const response = await fetch('/api/proposals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sopId: message.attribution.selectedSOP.sopId,
+          triggerQuery: userQuestion,
+          proposedChange: {
+            section: 'User-Reported Gap',
+            originalContent: 'User reported that the answer did not address their question',
+            suggestedContent: gapDescription,
+            changeType: 'clarification',
+            rationale: `User feedback: The AI response with ${Math.round(message.attribution.confidence * 100)}% confidence did not adequately answer the question. User explanation: ${gapDescription}`
+          },
+          conversationContext: {
+            sessionId,
+            messages: messages.slice(Math.max(0, messageIndex - 2), messageIndex + 2).map(m => ({
+              role: m.type === 'user' ? 'user' : 'assistant',
+              content: m.content
+            })),
+            timestamp: new Date()
+          },
+          metrics: {
+            confidenceScore: 0.9, // High confidence since user explicitly reported
+            affectedUsersCount: 1
+          }
+        })
+      });
+
+      if (response.ok) {
+        // Add a system message confirming the report
+        const confirmMessage: Message = {
+          id: Date.now().toString(),
+          type: 'assistant',
+          content: 'Thank you for your feedback! Your gap report has been submitted for review. An administrator will analyze this and improve the SOP accordingly.',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, confirmMessage]);
+      }
+    } catch (error) {
+      console.error('Failed to submit gap report:', error);
+    } finally {
+      setReportingGap(null);
+      setGapDescription('');
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col bg-gray-50">
+    <div className="flex-1 flex flex-col bg-gray-50 h-full overflow-hidden">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between">
@@ -178,15 +423,108 @@ export default function ChatInterfaceAI() {
             <Bot className="w-5 h-5 mr-2 text-blue-600" />
             <h3 className="text-lg font-medium">AI PMO Assistant</h3>
           </div>
-          {messages.length > 0 && (
-            <button
-              onClick={startNewConversation}
-              className="flex items-center px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              New Conversation
-            </button>
-          )}
+          <div className="flex items-center space-x-2">
+            {/* Session Dropdown */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setShowSessionDropdown(!showSessionDropdown)}
+                className="flex items-center px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                Recent Chats
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </button>
+              
+              {showSessionDropdown && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-96 overflow-y-auto">
+                  {sessions.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      No previous conversations
+                    </div>
+                  ) : (
+                    sessions.map((session) => (
+                      <div
+                        key={session.sessionId}
+                        className={`border-b border-gray-100 last:border-b-0 ${
+                          session.sessionId === sessionId ? 'bg-blue-50' : ''
+                        }`}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          if (confirm('Delete this conversation?')) {
+                            deleteSession(session.sessionId);
+                          }
+                        }}
+                      >
+                        {editingSessionId === session.sessionId ? (
+                          <div className="p-3">
+                            <input
+                              type="text"
+                              value={editingSessionName}
+                              onChange={(e) => setEditingSessionName(e.target.value)}
+                              onBlur={() => {
+                                if (editingSessionName.trim()) {
+                                  renameSession(session.sessionId, editingSessionName);
+                                } else {
+                                  setEditingSessionId(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  renameSession(session.sessionId, editingSessionName);
+                                } else if (e.key === 'Escape') {
+                                  setEditingSessionId(null);
+                                  setEditingSessionName('');
+                                }
+                              }}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              autoFocus
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="p-3 cursor-pointer hover:bg-gray-50 group"
+                            onClick={() => switchToSession(session.sessionId)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0 mr-2">
+                                <div className="font-medium text-sm text-gray-900 truncate">
+                                  {session.name}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {session.messageCount} messages • {formatSessionDate(session.lastActive)}
+                                </div>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSessionId(session.sessionId);
+                                  setEditingSessionName(session.name);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded transition-opacity"
+                              >
+                                <Edit2 className="w-3 h-3 text-gray-600" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* New Conversation Button */}
+            {messages.length > 0 && (
+              <button
+                onClick={startNewConversation}
+                className="flex items-center px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                New Chat
+              </button>
+            )}
+          </div>
         </div>
         <p className="text-sm text-gray-600 mt-1">
           Ask questions about project management - I'll automatically find the right SOP
@@ -194,7 +532,7 @@ export default function ChatInterfaceAI() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 min-h-0">
         {!historyLoaded && (
           <div className="text-center text-gray-500 py-8">
             <Bot className="w-12 h-12 mx-auto mb-4 text-gray-300 animate-pulse" />
@@ -221,7 +559,7 @@ export default function ChatInterfaceAI() {
             className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+              className={`max-w-xs lg:max-w-2xl px-4 py-2 rounded-lg ${
                 message.type === 'user'
                   ? 'bg-blue-600 text-white'
                   : 'bg-white text-gray-800 shadow border'
@@ -260,6 +598,15 @@ export default function ChatInterfaceAI() {
                             </span>
                           )}
                         </div>
+                        {!message.suggestedChange?.detected && (
+                          <button
+                            onClick={() => reportGap(message.id)}
+                            className="mt-2 flex items-center text-xs text-orange-600 hover:text-orange-700"
+                          >
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Report Gap
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -274,7 +621,7 @@ export default function ChatInterfaceAI() {
 
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-white text-gray-800 shadow border rounded-lg px-4 py-2 max-w-xs">
+            <div className="bg-white text-gray-800 shadow border rounded-lg px-4 py-2 max-w-xs lg:max-w-2xl">
               <div className="flex items-center space-x-2">
                 <Bot className="w-5 h-5 text-blue-600" />
                 <div className="flex space-x-1">
@@ -296,7 +643,7 @@ export default function ChatInterfaceAI() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask a project management question..."
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={loading}
           />
           <button
@@ -308,6 +655,43 @@ export default function ChatInterfaceAI() {
           </button>
         </form>
       </div>
+
+      {/* Gap Reporting Modal */}
+      {reportingGap && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold mb-4">Report Missing Information</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Please describe what information you were looking for that wasn&apos;t provided in the response.
+            </p>
+            <textarea
+              value={gapDescription}
+              onChange={(e) => setGapDescription(e.target.value)}
+              placeholder="Example: I need specific steps on how to handle budget overruns during the project..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              rows={4}
+            />
+            <div className="flex justify-end space-x-2 mt-4">
+              <button
+                onClick={() => {
+                  setReportingGap(null);
+                  setGapDescription('');
+                }}
+                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitGapReport}
+                disabled={!gapDescription.trim()}
+                className="px-4 py-2 text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
