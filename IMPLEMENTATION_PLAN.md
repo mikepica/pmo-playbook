@@ -274,6 +274,39 @@ const { answer, suggestedChange } = await generateAnswer(userQuery, fullSOP);
 - Context-aware AI responses enhance conversation flow
 - Clean UI with proper loading states and session management
 - Database integration for persistent conversation storage
+
+### Step 4.1: Enhanced Session Management (Added - Advanced Feature)
+
+**Additional Implementation**: Saved Chat Threads with Comprehensive Session Management
+
+#### Features Added:
+- **Session Dropdown**: "Recent Chats" dropdown showing last 20 conversations
+- **AI Summarization**: Auto-generated 3-5 word summaries using GPT-4o-mini  
+- **Session Switching**: Click to load any previous conversation with auto-save
+- **Session Renaming**: Click edit button to rename conversations (Enter/Escape shortcuts)
+- **Right-Click Delete**: Context menu to delete conversations with confirmation
+- **Smart Ordering**: Sessions ordered by last activity/viewing time
+- **Session Persistence**: `lastActive` timestamp updates on every interaction
+
+#### Technical Implementation:
+- **New API Endpoint**: `/api/sessions` with GET/PATCH/DELETE operations
+- **Database Schema Updates**: Added `sessionName`, `summary`, `lastActive` fields
+- **UI Components**: Advanced dropdown with edit/delete functionality  
+- **Auto-Save Logic**: Sessions update `lastActive` on every view/interaction
+- **AI Integration**: Automatic conversation topic summarization
+
+#### User Experience Improvements:
+- Sessions display format: "Project Charter Creation • 5 messages • 2h ago"
+- Current session highlighted in blue background
+- Smooth dropdown with click-outside-to-close behavior
+- Inline editing with keyboard shortcuts
+- Intelligent time formatting (just now, 2h ago, 3d ago, date)
+
+**Status**: ✅ Completed on 2025-01-23
+- Fulfilled missing "review past conversations" requirement from original Step 4
+- Advanced session management beyond original scope
+- AI-powered conversation summarization for improved user experience
+
 - Ready for Step 5: Build Change Proposal System
 
 ---

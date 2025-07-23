@@ -1,5 +1,0 @@
-title: "Analyze Content"
-description: "Perform detailed analysis of the selected documents"
-model: "gpt-4"
-prompt: "Please analyze the following content and provide insights on structure, key concepts, and potential improvements:"
-defaultFiles: ["sample.md"]
