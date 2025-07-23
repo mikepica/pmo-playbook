@@ -25,11 +25,6 @@ export interface SOPSelectionResult {
 
 export interface AnswerGenerationResult {
   answer: string;
-  suggestedChange?: {
-    section: string;
-    change: string;
-    rationale: string;
-  };
   sourceInfo: {
     sopId: string;
     title: string;
@@ -192,19 +187,11 @@ Instructions:
 3. Include specific steps, deliverables, or guidance from the SOP
 4. If relevant templates or tools are mentioned, include them in your response
 5. If the SOP doesn't fully address the question, acknowledge the limitation
-6. After answering, analyze if the user's question highlights a gap or ambiguity in the SOP
-7. Respond in JSON format:
+6. Respond in JSON format:
 
 {
-  "answer": "Your detailed response here",
-  "suggestedChange": {
-    "section": "Section name if improvement needed",
-    "change": "Specific improvement suggestion",
-    "rationale": "Why this change would help"
-  }
-}
-
-If no improvement is needed, set "suggestedChange" to null.`;
+  "answer": "Your detailed response here"
+}`;
 
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
@@ -235,7 +222,6 @@ If no improvement is needed, set "suggestedChange" to null.`;
       
       return {
         answer: aiResponse.answer,
-        suggestedChange: aiResponse.suggestedChange,
         sourceInfo: {
           sopId: fullSOP.sopId,
           title: fullSOP.title,

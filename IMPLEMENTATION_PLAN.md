@@ -17,7 +17,8 @@ After completing each step:
 - [x] Step 3: Enhance AI Integration for SOP Selection
 - [x] Step 4: Implement Chat History and Memory
 - [x] Step 5: Build Change Proposal System
-- [ ] Step 6: Create Admin Dashboard
+- [x] Step 6: Create Admin Dashboard
+- [x] Step 6.5: Simplify to User Feedback System (Updated)
 - [ ] Step 7: Implement Proposal Approval Workflow
 - [ ] Step 8: Enhance UI/UX and Add Features
 - [ ] Step 9: Testing and Quality Assurance
@@ -434,71 +435,360 @@ const { answer, suggestedChange } = await generateAnswer(userQuery, fullSOP);
 └── Action Buttons
 ```
 
+### Implementation Details:
+
+#### Admin Routes Created:
+- **`/admin`**: Main dashboard with proposal management
+- **`/admin/sops`**: SOP management and editing interface
+- **`/admin/layout.tsx`**: Shared layout with navigation sidebar
+
+#### Components Built:
+- **`ProposalList`**: Filterable list showing pending/approved/rejected proposals
+- **`ProposalReview`**: Side-by-side diff view with approval/rejection actions
+- **`SOPEditor`**: Full markdown editor with live preview and save functionality
+
+#### Key Features Implemented:
+- **Proposal Management**: Filter by status, view details, approve/reject with comments
+- **Side-by-Side Diff**: Clear visualization of original vs proposed content
+- **SOP Editing**: Full markdown editor with edit/preview toggle
+- **Responsive Design**: Professional admin interface with proper navigation
+- **Action Workflow**: Approve/reject proposals with admin comments and context
+
+#### API Enhancements:
+- **Enhanced `/api/content-db`**: Added PUT method for SOP updates and GET all SOPs
+- **Utilized `/api/proposals/[id]`**: PATCH method for proposal approval/rejection workflow
+
+#### Admin Interface Features:
+- **Navigation Sidebar**: Easy access to proposals, SOPs, analytics, users
+- **Filter System**: Quick filtering by proposal status with counts
+- **Edit Modes**: Toggle between view and edit for SOPs with unsaved changes indicator
+- **Professional UI**: Clean, responsive design suitable for administrative tasks
+
 ### Verification:
-- [ ] Admin dashboard loads at `/admin`
-- [ ] All pending proposals visible
-- [ ] Diff view clearly shows changes
-- [ ] Approve/reject buttons functional
+- ✅ Admin dashboard loads at `/admin` - **Professional interface with sidebar navigation**
+- ✅ All pending proposals visible - **Filterable list with status indicators and metadata**
+- ✅ Diff view clearly shows changes - **Side-by-side comparison with color coding**
+- ✅ Approve/reject buttons functional - **Full workflow with comments and status updates**
+- ✅ SOP editing works - **Markdown editor with preview and save functionality**
+
+**Status**: ✅ Completed on 2025-01-23
+- Full admin dashboard implemented with proposal and SOP management
+- Professional interface for reviewing and acting on change proposals
+- Complete SOP editing capability with markdown support
+- Workflow actions for proposal approval/rejection with admin comments
+- Responsive design suitable for administrative tasks
+- Ready for Step 6.5: Simplify to User Feedback System
 
 ---
 
-## Step 7: Implement Proposal Approval Workflow
+## Step 6.5: Simplify to User Feedback System
+
+### Overview
+Transform the current Change Proposal system into a streamlined User Feedback system that focuses exclusively on user-reported gaps, with simplified workflow and clear visibility into conversation context.
 
 ### Tasks:
-1. Create approval API endpoint `/api/proposals/[id]/approve`
-2. Approval process:
-   - Update HumanSOP with new content
-   - Increment version number
-   - Regenerate AgentSOP from updated markdown
-   - Mark proposal as "approved"
-   - Log approval action
-3. Add version history tracking
-4. Implement rollback capability
+1. **Phase 1: Cleanup & Removal**
+   - Remove AI-generated proposal logic from chat API
+   - Remove `suggestedChange` detection from AI response generation
+   - Clean up automatic proposal creation workflow
+
+2. **Phase 2: Database & Model Updates**
+   - Create new `UserFeedback` model (replace ChangeProposal for user reports)
+   - Simplify status to: `pending`, `ongoing`, `closed`
+   - Default priority to `medium` with admin adjustment options
+   - Capture specific message context and AI suggestions
+
+3. **Phase 3: Admin Interface Updates**
+   - Rename "Change Proposals" → "User Feedback" in navigation
+   - Create `FeedbackList` component with status filtering
+   - Create `FeedbackDetail` component showing conversation context
+   - Remove approval/rejection workflow - replace with status management
+
+4. **Phase 4: Enhanced Context Display** 
+   - Show user question, AI response, and user feedback clearly
+   - Display SOP context with section used
+   - Add "View Full SOP" and "View Conversation Thread" buttons
+   - Implement chat thread modal with message highlighting
+
+5. **Phase 5: API Restructuring**
+   - Create `/api/user-feedback` endpoints
+   - Create `/api/sessions/[sessionId]/thread` for conversation viewing
+   - Update user gap reporting to capture message IDs and full context
+
+### New User Feedback Model:
+```typescript
+UserFeedback {
+  feedbackId: string
+  sessionId: string
+  messageId: string        // Which AI response was flagged
+  
+  // Context
+  userQuestion: string     // Question that preceded the response
+  aiResponse: string       // Full AI response that didn't help
+  userComment: string      // User's description of what's missing
+  
+  // SOP Info  
+  sopId: string
+  sopTitle: string
+  sopSection: string       // Specific section used for response
+  confidence: number       // AI confidence in SOP selection
+  
+  // AI Suggestion (generated when admin views)
+  aiSuggestion: {
+    content: string        // What AI recommends adding
+    rationale: string      // Why this improvement is needed
+  }
+  
+  // Management
+  status: 'pending' | 'ongoing' | 'completed' | 'closed'
+  priority: 'low' | 'medium' | 'high'  // Default: medium
+  
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+### Admin Interface Layout:
+```
+[User Feedback #xxx]                          [Status: Pending ▼] [Priority: Medium ▼]
+
+📝 User Question:
+"How do I handle budget overruns during project execution?"
+
+🤖 AI Response (95% confidence):
+[The actual response that didn't help the user]
+
+💬 User Feedback:
+"This doesn't explain what to do when the overrun exceeds 20%"
+
+📚 SOP Context:
+Phase 3 - Design & Plan > Budget Management
+[View Full SOP] [View Conversation Thread]
+
+🔧 AI Recommendation:
+Consider adding a subsection on "Handling Significant Budget Overruns"...
+```
+
+### Integration with Future Steps:
+- **Step 7**: Focus only on SOP version management and AgentSOP regeneration
+- **Step 8**: User feedback analytics and improved conversation export
+- **Manage SOPs**: Admins reference feedback while editing SOPs manually
+
+### Verification:
+- [x] AI-generated proposals removed from system - **VERIFIED**
+- [x] User feedback creates simplified entries with full context - **VERIFIED**
+- [x] Admin can filter by status (pending/ongoing/closed) and adjust priority - **VERIFIED**
+- [x] Conversation thread modal shows full context with highlighted messages - **VERIFIED**
+- [x] SOP context clearly shows section used for AI response - **VERIFIED**
+- [x] User "Report Gap" flow captures all required context - **VERIFIED**
+
+**Status**: ✅ Completed on 2025-01-23 (Updated with completed status)
+
+### Implementation Summary:
+
+#### Phase 1: Cleanup & Removal ✅
+- **Removed AI-generated proposal logic** from `/api/chat/route.ts`
+- **Eliminated `suggestedChange` detection** from AI response generation in `ai-sop-selection.ts`
+- **Cleaned up automatic proposal creation** workflow in chat system
+- **Preserved chat functionality** while removing proposal generation
+
+#### Phase 2: Database & Model Updates ✅
+- **Created new UserFeedback model** (`src/models/UserFeedback.ts`)
+- **Status workflow**: `pending` → `ongoing` → `completed` → `closed`
+- **Priority system**: `low` | `medium` (default) | `high`
+- **Full context capture**: sessionId, messageId, userQuestion, aiResponse, userComment
+- **AI suggestion generation**: On-demand when admin reviews feedback
+- **Automatic metrics**: Confidence scores, timestamps, SOP attribution
+
+#### Phase 3: API Infrastructure ✅
+- **Created `/api/user-feedback` endpoints** (GET, POST)
+- **Created `/api/user-feedback/[id]` endpoints** (GET, PATCH, DELETE)
+- **Created `/api/sessions/[sessionId]/thread`** for conversation viewing
+- **Status counts aggregation** for filter options
+- **AI suggestion generation** using GPT-4o-mini for improvement recommendations
+
+#### Phase 4: Admin Interface Components ✅
+- **FeedbackList component**: Filterable list with status counts and priority indicators
+- **FeedbackDetail component**: Full context display with status/priority management
+- **ConversationModal component**: Complete chat thread with message highlighting
+- **Main admin page**: `/admin/user-feedback` as primary interface
+- **Responsive design** with proper loading states and error handling
+
+#### Phase 5: User Experience Updates ✅
+- **Updated gap reporting** in ChatInterfaceAI to use new User Feedback API
+- **Maintained "Report Gap" button** functionality with improved context capture
+- **Enhanced feedback confirmation** messages for better user experience
+- **Preserved chat functionality** without disrupting existing user workflow
+
+#### Phase 6: Navigation & Legacy System ✅
+- **Updated admin navigation** with User Feedback as primary interface
+- **Preserved legacy proposals** at `/admin/proposals` for historical reference
+- **Added warning notices** about legacy system status
+- **Redirected main admin route** to User Feedback system
+
+### Key Features Implemented:
+
+1. **Comprehensive Status Management**:
+   - `pending`: Newly submitted feedback awaiting review
+   - `ongoing`: Feedback being actively addressed by admin
+   - `completed`: Issue resolved and SOP updated
+   - `closed`: Feedback archived or deemed not actionable
+
+2. **Full Conversation Context**:
+   - Original user question preservation
+   - Complete AI response capture
+   - User feedback explanation
+   - Conversation thread viewing with highlighting
+
+3. **AI-Powered Suggestions**:
+   - On-demand improvement recommendations
+   - Context-aware rationale for changes
+   - Generated using GPT-4o-mini for efficiency
+
+4. **Admin Workflow Optimization**:
+   - Filter by status and priority
+   - Batch status updates
+   - Admin notes for tracking progress
+   - Direct links to SOPs and conversation threads
+
+### Technical Architecture:
+
+```typescript
+// UserFeedback Model Structure
+{
+  feedbackId: string,
+  sessionId: string,
+  messageId: string,
+  userQuestion: string,
+  aiResponse: string,
+  userComment: string,
+  sopId: string,
+  sopTitle: string,
+  confidence: number,
+  status: 'pending' | 'ongoing' | 'completed' | 'closed',
+  priority: 'low' | 'medium' | 'high',
+  aiSuggestion?: { content: string, rationale: string },
+  adminNotes?: string,
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### Files Created/Modified:
+
+**New Files:**
+- `src/models/UserFeedback.ts` - Database model
+- `src/app/api/user-feedback/route.ts` - Main API endpoints
+- `src/app/api/user-feedback/[id]/route.ts` - Individual feedback management
+- `src/app/api/sessions/[sessionId]/thread/route.ts` - Conversation viewing
+- `src/components/admin/FeedbackList.tsx` - Admin list component
+- `src/components/admin/FeedbackDetail.tsx` - Admin detail component
+- `src/components/admin/ConversationModal.tsx` - Thread viewing modal
+- `src/app/admin/user-feedback/page.tsx` - Main admin page
+- `src/app/admin/proposals/page.tsx` - Legacy system preserved
+
+**Modified Files:**
+- `src/app/api/chat/route.ts` - Removed AI proposal generation
+- `src/lib/ai-sop-selection.ts` - Removed suggestedChange logic
+- `src/components/ChatInterfaceAI.tsx` - Updated gap reporting
+- `src/app/admin/layout.tsx` - Updated navigation
+- `src/app/admin/page.tsx` - Redirect to user feedback
+
+### Integration Points:
+- **User Experience**: Seamless gap reporting without workflow disruption
+- **Admin Workflow**: Centralized feedback management with full context
+- **SOP Management**: Direct integration with SOP editing for improvements
+- **Legacy Support**: Historical proposals preserved for reference
+
+**System Ready For**: Step 7 - SOP Version Management and Auto-Regeneration
+
+---
+
+## Step 7: Implement SOP Version Management and Auto-Regeneration
+
+### Overview
+Focus on proper SOP lifecycle management, automatic AgentSOP regeneration when SOPs are updated, and version tracking for audit trails.
+
+### Tasks:
+1. **Automatic AgentSOP Regeneration**
+   - When SOP is updated in "Manage SOPs", automatically regenerate corresponding AgentSOP
+   - Parse markdown structure to extract objectives, activities, deliverables, etc.
+   - Update searchable content for improved AI selection
+
+2. **Version History Tracking**
+   - Track all SOP changes with timestamps and content diffs
+   - Store previous versions for rollback capability
+   - Log who made changes (when auth is implemented)
+
+3. **Live Content Updates**
+   - Ensure chat immediately uses updated SOP content
+   - Clear any caching that might serve stale content
+   - Validate AgentSOP regeneration success
+
+4. **SOP Change Validation**
+   - Validate markdown structure after edits
+   - Ensure required sections are maintained
+   - Alert if critical sections are removed
 
 ### Workflow:
 ```
-Proposal Approved → Update HumanSOP → Regenerate AgentSOP → Update Status → Log Action
+SOP Updated in Admin → Increment Version → Regenerate AgentSOP → Update Search Index → Notify Success
 ```
 
+### Integration Points:
+- **User Feedback**: Admins can reference feedback while editing SOPs manually
+- **Chat System**: Immediately uses updated SOP content for responses
+- **Admin Dashboard**: Shows version history and regeneration status
+
 ### Verification:
-- [ ] Approved changes reflect in HumanSOP
-- [ ] AgentSOP regenerated with new content
-- [ ] Version numbers increment correctly
+- [ ] SOP updates automatically regenerate AgentSOP
+- [ ] Version numbers increment correctly with change tracking
 - [ ] Chat uses updated SOP content immediately
+- [ ] Version history tracks all changes with timestamps
+- [ ] Rollback capability works for critical errors
 
 ---
 
 ## Step 8: Enhance UI/UX and Add Features
 
 ### Tasks:
-1. Improve chat interface:
+1. ✅ Improve chat interface (Mostly Complete):
    - ✅ Show which SOP was used for each answer (Completed in Step 3)
    - ✅ Add confidence indicators (Completed in Step 3)
    - ✅ Implement typing indicators (Completed in Step 3)
+   - ✅ User gap reporting (Completed in Step 5)
+   
 2. Add SOP browser:
-   - View all available SOPs
-   - Search within SOPs
-   - Preview SOP content
-3. Create feedback mechanism:
-   - Thumbs up/down on responses
-   - ✅ Manual change proposal submission (Completed in Step 5)
-4. Add export functionality for conversations
+   - View all available SOPs independently from chat
+   - Search within SOPs content
+   - Preview SOP content without admin access
 
-### Already Completed (Advanced from this step):
-- **Manual Change Proposal Submission**: Implemented in Step 5 with "Report Gap" button
-- **SOP Attribution Display**: Shows which SOP was used with confidence scores
-- **Typing Indicators**: Loading animation while AI processes requests
+3. Enhanced feedback features:
+   - Thumbs up/down on individual responses
+   - User feedback analytics dashboard
+   - Export conversations with feedback data
 
-### New Components:
-- `SOPBrowser`: Browse and search all SOPs
-- `FeedbackWidget`: Collect user feedback
-- `ExportDialog`: Export chat history
+4. Conversation export functionality:
+   - Export chat history as markdown/PDF
+   - Include SOP attributions and confidence scores
+   - Export user feedback reports for analysis
+
+### Updated Components Needed:
+- `SOPBrowser`: Public SOP viewing and search
+- `FeedbackAnalytics`: Admin analytics for user feedback trends
+- `ExportDialog`: Export conversations and feedback
+
+### Integration with User Feedback System:
+- Analytics show most common feedback topics
+- Export includes feedback reports and SOP improvement suggestions
+- SOP browser helps users find information before asking questions
 
 ### Verification:
 - ✅ SOP attribution visible in chat (Completed in Step 3)
-- [ ] Can browse all SOPs independently
-- ✅ Feedback successfully creates proposals (Completed in Step 5)
-- [ ] Export generates valid markdown/PDF
+- ✅ User feedback system creates entries with full context (Step 6.5)
+- [ ] Can browse all SOPs independently without admin access
+- [ ] Feedback analytics show trends and patterns
+- [ ] Export generates valid markdown/PDF with feedback data
 
 ---
 
@@ -509,16 +799,30 @@ Proposal Approved → Update HumanSOP → Regenerate AgentSOP → Update Status 
    - Unit tests for SOP selection logic
    - Integration tests for API endpoints
    - E2E tests for critical workflows
+   - User feedback system tests
+   
 2. Test edge cases:
    - Ambiguous queries
    - Multiple relevant SOPs
    - No matching SOPs
-   - Concurrent proposal approvals
+   - User feedback submission edge cases
+   - SOP regeneration failures
+   
 3. Performance testing:
    - Response time for SOP selection
    - Database query optimization
    - Concurrent user load
-4. Create test data and scenarios
+   - AgentSOP regeneration performance
+   
+4. User workflow testing:
+   - Complete user feedback flow from gap report to admin review
+   - SOP editing and regeneration workflow
+   - Session management and conversation threading
+   
+5. Create test data and scenarios:
+   - Sample user feedback with various gap types
+   - Test SOPs with different markdown structures
+   - Mock conversation threads for testing
 
 ### Test Coverage:
 ```
@@ -526,18 +830,29 @@ src/
 ├── __tests__/
 │   ├── api/
 │   │   ├── chat.test.ts
-│   │   ├── proposals.test.ts
+│   │   ├── user-feedback.test.ts (new)
+│   │   ├── sessions.test.ts (updated)
 │   │   └── sop-selection.test.ts
 │   ├── components/
+│   │   ├── admin/
+│   │   │   ├── FeedbackList.test.ts (new)
+│   │   │   ├── FeedbackDetail.test.ts (new)
+│   │   │   └── SOPEditor.test.ts
+│   │   └── ChatInterfaceAI.test.ts
 │   └── e2e/
-│       └── workflows.test.ts
+│       ├── user-feedback-workflow.test.ts (new)
+│       ├── sop-management.test.ts (new)
+│       └── chat-workflows.test.ts
 ```
 
 ### Verification:
 - [ ] All tests pass (`npm test`)
-- [ ] 80%+ code coverage
+- [ ] 80%+ code coverage including user feedback system
 - [ ] Response time < 2s for SOP selection
+- [ ] User feedback creation and admin review flows work end-to-end
+- [ ] SOP regeneration completes within acceptable time limits
 - [ ] No memory leaks under load
+- [ ] Session management handles concurrent users properly
 
 ---
 
@@ -545,47 +860,69 @@ src/
 
 ### Tasks:
 1. Create comprehensive documentation:
-   - API documentation
-   - Admin user guide
+   - API documentation (including User Feedback endpoints)
+   - Admin user guide (updated for feedback system)
+   - User guide for gap reporting
    - SOP authoring guidelines
-   - System architecture diagram
+   - System architecture diagram (updated)
+   
 2. Set up environment configurations:
    - Development settings
-   - Staging settings
+   - Staging settings  
    - Production settings
+   - Database migration scripts for User Feedback
+   
 3. Implement security measures:
    - API rate limiting
-   - Input validation
+   - Input validation for feedback submission
    - Secure admin routes
-4. Create deployment scripts and CI/CD pipeline
+   - User feedback data protection
+   
+4. Create deployment scripts and CI/CD pipeline:
+   - Database migration for UserFeedback model
+   - AgentSOP regeneration verification
+   - Rollback procedures for SOP changes
 
-### Documentation Structure:
+### Updated Documentation Structure:
 ```
 docs/
-├── API.md
-├── ADMIN_GUIDE.md
-├── SOP_AUTHORING.md
-├── ARCHITECTURE.md
-└── DEPLOYMENT.md
+├── API.md (updated with user feedback endpoints)
+├── ADMIN_GUIDE.md (updated with feedback management)
+├── USER_GUIDE.md (new - gap reporting workflow)
+├── SOP_AUTHORING.md (updated with feedback integration)
+├── FEEDBACK_SYSTEM.md (new - system overview)
+├── ARCHITECTURE.md (updated architecture)
+└── DEPLOYMENT.md (updated with new components)
 ```
 
+### User Feedback System Documentation:
+- How users report gaps in AI responses
+- Admin workflow for reviewing and managing feedback
+- Integration between feedback and SOP editing
+- Conversation threading and context viewing
+- Status management (pending → ongoing → closed)
+
 ### Verification:
-- [ ] All documentation complete and accurate
+- [ ] All documentation complete and accurate (including feedback system)
 - [ ] Environment variables properly configured
-- [ ] Security headers implemented
+- [ ] Security headers implemented with feedback data protection
+- [ ] Database migration scripts for UserFeedback model tested
 - [ ] Successful deployment to staging environment
-- [ ] Load testing shows system handles expected traffic
+- [ ] Load testing shows system handles expected traffic including feedback workflows
+- [ ] Admin can successfully manage user feedback end-to-end
+- [ ] User gap reporting flow documented and tested
 
 ---
 
 ## Post-Implementation Checklist
 
 ### System Health:
-- [ ] All 5 PMO SOPs accessible via chat
-- [ ] Change proposals generating correctly
-- [ ] Admin can approve/reject proposals
-- [ ] Approved changes reflect immediately
-- [ ] Chat history persists properly
+- [ ] All 5 PMO SOPs accessible via chat with proper AI selection
+- [ ] User feedback system capturing gap reports correctly
+- [ ] Admin can manage feedback status (pending/ongoing/closed)
+- [ ] SOP updates regenerate AgentSOPs automatically
+- [ ] Chat history persists properly with session management
+- [ ] Conversation threading works in admin feedback view
 
 ### Performance Metrics:
 - [ ] Average response time < 3 seconds

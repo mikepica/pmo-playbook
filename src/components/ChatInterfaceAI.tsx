@@ -368,40 +368,28 @@ export default function ChatInterfaceAI() {
       const messageIndex = messages.findIndex(m => m.id === reportingGap);
       const userQuestion = messages[messageIndex - 1]?.content || 'Unknown question';
 
-      const response = await fetch('/api/proposals', {
+      const response = await fetch('/api/user-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sessionId,
+          messageId: message.id,
+          userQuestion,
+          aiResponse: message.content,
+          userComment: gapDescription,
           sopId: message.attribution.selectedSOP.sopId,
-          triggerQuery: userQuestion,
-          proposedChange: {
-            section: 'User-Reported Gap',
-            originalContent: 'User reported that the answer did not address their question',
-            suggestedContent: gapDescription,
-            changeType: 'clarification',
-            rationale: `User feedback: The AI response with ${Math.round(message.attribution.confidence * 100)}% confidence did not adequately answer the question. User explanation: ${gapDescription}`
-          },
-          conversationContext: {
-            sessionId,
-            messages: messages.slice(Math.max(0, messageIndex - 2), messageIndex + 2).map(m => ({
-              role: m.type === 'user' ? 'user' : 'assistant',
-              content: m.content
-            })),
-            timestamp: new Date()
-          },
-          metrics: {
-            confidenceScore: 0.9, // High confidence since user explicitly reported
-            affectedUsersCount: 1
-          }
+          sopTitle: message.attribution.selectedSOP.title,
+          confidence: message.attribution.confidence
         })
       });
 
       if (response.ok) {
+        const data = await response.json();
         // Add a system message confirming the report
         const confirmMessage: Message = {
           id: Date.now().toString(),
           type: 'assistant',
-          content: 'Thank you for your feedback! Your gap report has been submitted for review. An administrator will analyze this and improve the SOP accordingly.',
+          content: data.message || 'Thank you for your feedback! We will review this and improve our knowledge base.',
           timestamp: new Date()
         };
         setMessages(prev => [...prev, confirmMessage]);

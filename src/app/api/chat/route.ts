@@ -2,23 +2,6 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { selectBestSOP, generateAnswer } from '@/lib/ai-sop-selection';
 import ChatHistory from '@/models/ChatHistory';
-import ChangeProposal from '@/models/ChangeProposal';
-
-// Helper function to determine change type based on the suggestion
-function determineChangeType(suggestedChange: { change: string; rationale: string }): string {
-  const changeText = suggestedChange.change.toLowerCase();
-  const rationaleText = suggestedChange.rationale.toLowerCase();
-  
-  if (changeText.includes('add') || rationaleText.includes('missing') || rationaleText.includes('should include')) {
-    return 'addition';
-  } else if (changeText.includes('remove') || changeText.includes('delete')) {
-    return 'deletion';
-  } else if (changeText.includes('update') || changeText.includes('modify') || changeText.includes('change')) {
-    return 'modification';
-  } else {
-    return 'clarification';
-  }
-}
 
 export async function POST(request: Request) {
   try {
@@ -114,65 +97,8 @@ export async function POST(request: Request) {
       // Continue processing even if history save fails
     }
 
-    // Create change proposal if suggested
-    if (answerResult.suggestedChange) {
-      try {
-        // Get the humanSopId from the selected AgentSOP
-        const AgentSOP = (await import('@/models/AgentSOP')).default;
-        const agentSOP = await AgentSOP.findOne({ sopId: sopSelection.selectedSopId }).select('humanSopId');
-        
-        if (!agentSOP || !agentSOP.humanSopId) {
-          console.warn('Could not find humanSopId for SOP:', sopSelection.selectedSopId);
-        } else {
-          // Check for recent similar proposals
-          const existingSimilar = await ChangeProposal.findOne({
-            sopId: sopSelection.selectedSopId,
-            'proposedChange.section': answerResult.suggestedChange.section,
-            status: 'pending_review',
-            createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // Last 24 hours
-          });
-
-          if (existingSimilar) {
-            // Update metrics on existing proposal
-            existingSimilar.metrics.affectedUsersCount += 1;
-            await existingSimilar.save();
-            console.log('Updated existing proposal metrics:', existingSimilar.proposalId);
-          } else {
-            // Create new proposal
-            const changeProposal = {
-              sopId: sopSelection.selectedSopId,
-              humanSopId: agentSOP.humanSopId,
-              triggerQuery: message,
-              conversationContext: {
-                sessionId: currentSessionId,
-                messages: conversationContext.concat([
-                  { role: 'user', content: message }
-                ]).slice(-5), // Keep last 5 messages for context
-                timestamp: new Date()
-              },
-              proposedChange: {
-                section: answerResult.suggestedChange.section,
-                originalContent: 'Current content not captured', // TODO: Extract from SOP
-                suggestedContent: answerResult.suggestedChange.change,
-                changeType: determineChangeType(answerResult.suggestedChange),
-                rationale: answerResult.suggestedChange.rationale
-              },
-              metrics: {
-                confidenceScore: sopSelection.confidence,
-                similarProposalsCount: 0,
-                affectedUsersCount: 1
-              }
-            };
-
-            await ChangeProposal.create(changeProposal);
-            console.log('Change proposal created for SOP:', sopSelection.selectedSopId);
-          }
-        }
-      } catch (proposalError) {
-        console.warn('Failed to create change proposal:', proposalError);
-        // Continue processing even if proposal creation fails
-      }
-    }
+    // AI-generated proposal logic removed as part of Step 6.5: Simplify to User Feedback System
+    // Only user-initiated feedback will create proposals going forward
 
     // Return response with full attribution
     return NextResponse.json({
@@ -186,11 +112,7 @@ export async function POST(request: Request) {
         },
         confidence: sopSelection.confidence,
         reasoning: sopSelection.reasoning
-      },
-      suggestedChange: answerResult.suggestedChange ? {
-        detected: true,
-        section: answerResult.suggestedChange.section
-      } : null
+      }
     });
 
   } catch (error: unknown) {
