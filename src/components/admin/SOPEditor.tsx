@@ -55,18 +55,26 @@ export default function SOPEditor({ sop, editMode, onSOPUpdate, onEditModeChange
         const updatedSOP = {
           ...sop,
           markdownContent: content,
-          version: sop.version + 1,
-          updatedAt: new Date().toISOString()
+          version: data.sop.version,
+          updatedAt: data.sop.updatedAt
         };
         
         onSOPUpdate(updatedSOP);
         setHasChanges(false);
         onEditModeChange(false);
         
-        // TODO: Regenerate AgentSOP here
-        console.log('SOP updated successfully, should regenerate AgentSOP');
+        // Show regeneration feedback
+        if (data.warning) {
+          alert(`Warning: ${data.warning}\n\nErrors: ${data.regenerationErrors?.join('\n') || 'None'}\n\nWarnings: ${data.regenerationWarnings?.join('\n') || 'None'}`);
+        } else if (data.agentSOPRegenerated) {
+          console.log(`SOP and AgentSOP updated successfully. AgentSOP version: ${data.agentSOPVersion}`);
+          if (data.regenerationWarnings?.length > 0) {
+            console.log('Regeneration warnings:', data.regenerationWarnings);
+          }
+        }
       } else {
-        alert('Failed to save SOP');
+        const errorData = await response.json();
+        alert(`Failed to save SOP: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Save failed:', error);

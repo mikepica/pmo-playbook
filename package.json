@@ -14,7 +14,8 @@
     "demo-sops": "tsx scripts/demo-sop-queries.ts",
     "test-ai": "tsx scripts/test-ai-selection.ts",
     "test-proposals": "tsx scripts/test-proposals.ts",
-    "check-proposals": "tsx scripts/check-proposals.ts"
+    "check-proposals": "tsx scripts/check-proposals.ts",
+    "test-regeneration": "tsx scripts/test-sop-regeneration.ts"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.11",

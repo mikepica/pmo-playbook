@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, Settings } from 'lucide-react';
+import Link from 'next/link';
 
 interface SOP {
   id: string;
@@ -52,25 +53,34 @@ export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPT
 
   return (
     <div className="bg-white border-b border-gray-200">
-      <div className="flex items-center px-4 py-3">
-        <FileText className="w-5 h-5 mr-3 text-gray-600" />
-        <div className="text-sm text-gray-600 mr-4">PMO SOPs:</div>
-        <div className="flex flex-wrap gap-2">
-          {sops.map((sop) => (
-            <button
-              key={sop.id}
-              onClick={() => onSOPSelect(sop.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedSOP === sop.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
-              }`}
-              title={sop.title}
-            >
-              Phase {sop.phase}: {sop.title}
-            </button>
-          ))}
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center">
+          <FileText className="w-5 h-5 mr-3 text-gray-600" />
+          <div className="text-sm text-gray-600 mr-4">PMO SOPs:</div>
+          <div className="flex flex-wrap gap-2">
+            {sops.map((sop) => (
+              <button
+                key={sop.id}
+                onClick={() => onSOPSelect(sop.id)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedSOP === sop.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
+                }`}
+                title={sop.title}
+              >
+                Phase {sop.phase}: {sop.title}
+              </button>
+            ))}
+          </div>
         </div>
+        <Link
+          href="/admin"
+          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+        >
+          <Settings className="w-4 h-4 mr-2" />
+          Admin Panel
+        </Link>
       </div>
       
       {sops.length === 0 && (

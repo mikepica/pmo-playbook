@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import HumanSOP from '@/models/HumanSOP';
 import AgentSOP from '@/models/AgentSOP';
+import { regenerateAgentSOP } from '@/lib/sop-regenerator';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -86,32 +87,52 @@ export async function PUT(request: Request) {
     
     await connectToDatabase();
     
-    // Update the HumanSOP
-    const updatedSOP = await HumanSOP.findOneAndUpdate(
-      { sopId, isActive: true },
-      { 
-        markdownContent,
-        updatedAt: new Date()
-      },
-      { new: true }
-    );
+    // Find the SOP first to increment version
+    const existingSOP = await HumanSOP.findOne({ sopId, isActive: true });
     
-    if (!updatedSOP) {
+    if (!existingSOP) {
       return NextResponse.json({ error: 'SOP not found' }, { status: 404 });
     }
     
-    // TODO: Regenerate AgentSOP here
-    // This would involve parsing the markdown and updating the corresponding AgentSOP
-    console.log('Should regenerate AgentSOP for:', sopId);
+    // Update the HumanSOP with version increment
+    existingSOP.markdownContent = markdownContent;
+    existingSOP.version = (existingSOP.version || 1) + 1;
+    existingSOP.lastModifiedBy = 'admin'; // TODO: Get from auth context
+    
+    await existingSOP.save();
+    
+    // Regenerate AgentSOP
+    const regenerationResult = await regenerateAgentSOP(sopId);
+    
+    if (!regenerationResult.success) {
+      console.error('Failed to regenerate AgentSOP:', regenerationResult.message);
+      
+      // Still return success for HumanSOP update, but include warning
+      return NextResponse.json({ 
+        success: true,
+        sop: {
+          sopId: existingSOP.sopId,
+          title: existingSOP.title,
+          version: existingSOP.version,
+          updatedAt: existingSOP.updatedAt
+        },
+        warning: `SOP updated but AgentSOP regeneration failed: ${regenerationResult.message}`,
+        regenerationErrors: regenerationResult.errors,
+        regenerationWarnings: regenerationResult.warnings
+      });
+    }
     
     return NextResponse.json({ 
       success: true,
       sop: {
-        sopId: updatedSOP.sopId,
-        title: updatedSOP.title,
-        version: updatedSOP.version,
-        updatedAt: updatedSOP.updatedAt
-      }
+        sopId: existingSOP.sopId,
+        title: existingSOP.title,
+        version: existingSOP.version,
+        updatedAt: existingSOP.updatedAt
+      },
+      agentSOPRegenerated: true,
+      agentSOPVersion: regenerationResult.agentSOP?.version,
+      regenerationWarnings: regenerationResult.warnings
     });
     
   } catch (error) {
