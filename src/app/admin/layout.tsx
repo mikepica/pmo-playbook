@@ -1,4 +1,4 @@
-import { Settings, FileText, Users, BarChart3, MessageSquare } from 'lucide-react';
+import { Settings, FileText, Users, BarChart3, MessageSquare, Briefcase } from 'lucide-react';
 import Link from 'next/link';
 import { ReactNode } from 'react';
 
@@ -57,6 +57,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 >
                   <Settings className="w-4 h-4 mr-3" />
                   Manage SOPs
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/projects"
+                  className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 hover:text-gray-900"
+                >
+                  <Briefcase className="w-4 h-4 mr-3" />
+                  Manage Projects
                 </Link>
               </li>
               <li>

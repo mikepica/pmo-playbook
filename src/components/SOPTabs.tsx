@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { FileText, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import ProjectsDropdown from '@/components/ProjectsDropdown';
 
 interface SOP {
   id: string;
@@ -80,6 +81,7 @@ export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPT
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <ProjectsDropdown />
           <Link
             href="/admin"
             className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
