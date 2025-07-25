@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, Settings } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface SOP {
   id: string;
@@ -20,6 +21,7 @@ interface SOPTabsProps {
 export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPTabsProps) {
   const [sops, setSOPs] = useState<SOP[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchSOPs = async () => {
@@ -61,7 +63,10 @@ export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPT
             {sops.map((sop) => (
               <button
                 key={sop.id}
-                onClick={() => onSOPSelect(sop.id)}
+                onClick={() => {
+                  onSOPSelect(sop.id);
+                  router.push(`/sop/${sop.id}`);
+                }}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   selectedSOP === sop.id
                     ? 'bg-blue-600 text-white'
@@ -75,13 +80,6 @@ export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPT
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <Link
-            href="/sops"
-            className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            Browse SOPs
-          </Link>
           <Link
             href="/admin"
             className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
