@@ -74,13 +74,22 @@ export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPT
             ))}
           </div>
         </div>
-        <Link
-          href="/admin"
-          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          <Settings className="w-4 h-4 mr-2" />
-          Admin Panel
-        </Link>
+        <div className="flex items-center space-x-2">
+          <Link
+            href="/sops"
+            className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Browse SOPs
+          </Link>
+          <Link
+            href="/admin"
+            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Admin Panel
+          </Link>
+        </div>
       </div>
       
       {sops.length === 0 && (

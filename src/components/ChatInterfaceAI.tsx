@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, Trash2 } from 'lucide-react';
+import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, Trash2, ThumbsUp, ThumbsDown, Download } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -45,6 +45,7 @@ export default function ChatInterfaceAI() {
   const [showSessionDropdown, setShowSessionDropdown] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
+  const [messageFeedback, setMessageFeedback] = useState<Record<string, 'helpful' | 'not_helpful'>>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Initialize session and load history
@@ -357,6 +358,100 @@ export default function ChatInterfaceAI() {
     setReportingGap(messageId);
   };
 
+  const handleMessageFeedback = async (messageId: string, rating: 'helpful' | 'not_helpful') => {
+    const message = messages.find(m => m.id === messageId);
+    if (!message || !message.attribution) return;
+
+    try {
+      const response = await fetch('/api/message-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId,
+          sessionId,
+          rating,
+          sopUsed: message.attribution.selectedSOP.sopId,
+          confidence: message.attribution.confidence
+        })
+      });
+
+      if (response.ok) {
+        setMessageFeedback(prev => ({ ...prev, [messageId]: rating }));
+      }
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+    }
+  };
+
+  const removeMessageFeedback = async (messageId: string) => {
+    try {
+      const response = await fetch(`/api/message-feedback?messageId=${messageId}&sessionId=${sessionId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        setMessageFeedback(prev => {
+          const updated = { ...prev };
+          delete updated[messageId];
+          return updated;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to remove feedback:', error);
+    }
+  };
+
+  const exportConversation = () => {
+    if (messages.length === 0) return;
+
+    const currentSession = sessions.find(s => s.sessionId === sessionId);
+    const sessionTitle = currentSession?.sessionName || `Chat Session ${sessionId}`;
+    
+    let markdown = `# ${sessionTitle}\n\n`;
+    markdown += `**Date:** ${new Date().toLocaleDateString()}\n`;
+    markdown += `**Session ID:** ${sessionId}\n`;
+    markdown += `**Messages:** ${messages.length}\n\n`;
+    markdown += `---\n\n`;
+
+    messages.forEach((message, index) => {
+      const timestamp = message.timestamp.toLocaleString();
+      
+      if (message.type === 'user') {
+        markdown += `### 👤 User (${timestamp})\n\n`;
+        markdown += `${message.content}\n\n`;
+      } else {
+        markdown += `### 🤖 Assistant (${timestamp})\n\n`;
+        markdown += `${message.content}\n\n`;
+        
+        if (message.attribution) {
+          markdown += `> **Source:** ${message.attribution.selectedSOP.sopId} - ${message.attribution.selectedSOP.title} (Phase ${message.attribution.selectedSOP.phase})\n`;
+          markdown += `> **Confidence:** ${Math.round(message.attribution.confidence * 100)}%\n`;
+          
+          const feedback = messageFeedback[message.id];
+          if (feedback) {
+            markdown += `> **Feedback:** ${feedback === 'helpful' ? '👍 Helpful' : '👎 Not helpful'}\n`;
+          }
+          markdown += '\n';
+        }
+      }
+      
+      if (index < messages.length - 1) {
+        markdown += `---\n\n`;
+      }
+    });
+
+    // Create and download the file
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sessionTitle.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const submitGapReport = async () => {
     if (!reportingGap || !gapDescription.trim()) return;
 
@@ -502,15 +597,25 @@ export default function ChatInterfaceAI() {
               )}
             </div>
             
-            {/* New Conversation Button */}
+            {/* Action Buttons */}
             {messages.length > 0 && (
-              <button
-                onClick={startNewConversation}
-                className="flex items-center px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                New Chat
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={exportConversation}
+                  className="flex items-center px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  title="Export conversation as markdown"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </button>
+                <button
+                  onClick={startNewConversation}
+                  className="flex items-center px-3 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  New Chat
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -586,15 +691,51 @@ export default function ChatInterfaceAI() {
                             </span>
                           )}
                         </div>
-                        {!message.suggestedChange?.detected && (
-                          <button
-                            onClick={() => reportGap(message.id)}
-                            className="mt-2 flex items-center text-xs text-orange-600 hover:text-orange-700"
-                          >
-                            <AlertCircle className="w-3 h-3 mr-1" />
-                            Report Gap
-                          </button>
-                        )}
+                        {/* Feedback buttons */}
+                        <div className="flex items-center space-x-3 mt-2">
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => 
+                                messageFeedback[message.id] === 'helpful' 
+                                  ? removeMessageFeedback(message.id)
+                                  : handleMessageFeedback(message.id, 'helpful')
+                              }
+                              className={`p-1 rounded transition-colors ${
+                                messageFeedback[message.id] === 'helpful'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                              }`}
+                              title="Helpful"
+                            >
+                              <ThumbsUp className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => 
+                                messageFeedback[message.id] === 'not_helpful' 
+                                  ? removeMessageFeedback(message.id)
+                                  : handleMessageFeedback(message.id, 'not_helpful')
+                              }
+                              className={`p-1 rounded transition-colors ${
+                                messageFeedback[message.id] === 'not_helpful'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                              }`}
+                              title="Not helpful"
+                            >
+                              <ThumbsDown className="w-4 h-4" />
+                            </button>
+                          </div>
+                          
+                          {!message.suggestedChange?.detected && (
+                            <button
+                              onClick={() => reportGap(message.id)}
+                              className="flex items-center text-xs text-orange-600 hover:text-orange-700"
+                            >
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Report Gap
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}

@@ -11,10 +11,37 @@ export async function GET(request: Request) {
     const status = searchParams.get('status');
     const priority = searchParams.get('priority');
     const sopId = searchParams.get('sopId');
+    const analytics = searchParams.get('analytics');
     const limit = parseInt(searchParams.get('limit') || '50');
     const skip = parseInt(searchParams.get('skip') || '0');
 
     await connectToDatabase();
+
+    // Return analytics data
+    if (analytics === 'true') {
+      const totalReports = await UserFeedback.countDocuments();
+      
+      const byStatus = await UserFeedback.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]);
+      
+      const bySOP = await UserFeedback.aggregate([
+        { $group: { _id: '$sopId', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]);
+      
+      const recentGaps = await UserFeedback.find()
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .select('sopId userComment createdAt');
+      
+      return NextResponse.json({
+        totalReports,
+        byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
+        bySOP: bySOP.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
+        recentGaps
+      });
+    }
 
     // Build query
     const query: Record<string, unknown> = {};

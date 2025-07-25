@@ -8,8 +8,54 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '20');
+    const analytics = searchParams.get('analytics');
     
     await connectToDatabase();
+    
+    // Return analytics data
+    if (analytics === 'true') {
+      const totalSessions = await ChatHistory.distinct('sessionId').countDocuments();
+      const totalMessages = await ChatHistory.countDocuments();
+      const avgMessagesPerSession = totalMessages / (totalSessions || 1);
+      
+      // SOP usage frequency
+      const sopUsage = await ChatHistory.aggregate([
+        { $match: { type: 'assistant', 'attribution.selectedSOP.sopId': { $exists: true } } },
+        { $group: { _id: '$attribution.selectedSOP.sopId', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]);
+      
+      // Recent activity (last 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const recentActivity = await ChatHistory.aggregate([
+        { $match: { createdAt: { $gte: sevenDaysAgo } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            sessions: { $addToSet: '$sessionId' },
+            messages: { $sum: 1 }
+          }
+        },
+        {
+          $project: {
+            date: '$_id',
+            sessions: { $size: '$sessions' },
+            messages: 1
+          }
+        },
+        { $sort: { date: -1 } }
+      ]);
+      
+      return NextResponse.json({
+        totalSessions,
+        totalMessages,
+        avgMessagesPerSession: Math.round(avgMessagesPerSession * 10) / 10,
+        sopUsageFrequency: sopUsage.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
+        recentActivity
+      });
+    }
 
     // Get recent sessions, ordered by lastActive
     const sessions = await ChatHistory.find({})
