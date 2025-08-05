@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FileText, Edit, Save, X } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { FileText, Edit, X } from 'lucide-react';
 import SOPEditor from '@/components/admin/SOPEditor';
 
 interface SOP {
@@ -20,11 +20,7 @@ export default function SOPManagement() {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
 
-  useEffect(() => {
-    loadSOPs();
-  }, []);
-
-  const loadSOPs = async () => {
+  const loadSOPs = useCallback(async () => {
     setLoading(true);
     try {
       // Using the existing content-db API to get all SOPs
@@ -42,7 +38,11 @@ export default function SOPManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedSOP]);
+
+  useEffect(() => {
+    loadSOPs();
+  }, [loadSOPs]);
 
   const handleSOPUpdate = (updatedSOP: SOP) => {
     setSops(prev => prev.map(sop => 

@@ -1,5 +1,9 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+interface IProjectModel extends mongoose.Model<IProject> {
+  getNextProjectId(): Promise<string>;
+}
+
 export interface IProjectMilestone {
   date: Date;
   description: string;
@@ -172,6 +176,6 @@ ProjectSchema.methods.getSummary = function() {
   };
 };
 
-const Project = mongoose.models.Project || mongoose.model<IProject>('Project', ProjectSchema);
+const Project = (mongoose.models.Project || mongoose.model<IProject, IProjectModel>('Project', ProjectSchema)) as IProjectModel;
 
 export default Project;

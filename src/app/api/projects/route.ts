@@ -90,10 +90,10 @@ export async function POST(request: Request) {
         projectName: project.projectName
       }
     }, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to create project:', error);
     
-    if (error.code === 11000) {
+    if ((error as { code?: number }).code === 11000) {
       return NextResponse.json({ 
         error: 'Project ID already exists' 
       }, { status: 409 });
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     
     return NextResponse.json({ 
       error: 'Failed to create project',
-      details: error.message 
+      details: (error as Error).message 
     }, { status: 500 });
   }
 }

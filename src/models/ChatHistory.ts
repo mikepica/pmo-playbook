@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Types } from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IMessage {
   role: 'user' | 'assistant' | 'system';
@@ -6,6 +6,15 @@ export interface IMessage {
   timestamp: Date;
   selectedSopId?: string;
   confidence?: number;
+}
+
+interface IChatHistoryModel extends mongoose.Model<IChatHistory> {
+  getActiveSessions(limit?: number): Promise<IChatHistory[]>;
+  getSOPUsageStats(startDate?: Date, endDate?: Date): Promise<Array<{
+    _id: string;
+    totalUsage: number;
+    uniqueSessions: number;
+  }>>;
 }
 
 export interface IChatHistory extends Document {
@@ -33,6 +42,16 @@ export interface IChatHistory extends Document {
   lastActive?: Date;
   createdAt: Date;
   updatedAt: Date;
+  
+  // Instance methods
+  addMessage(message: {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: Date;
+    selectedSopId?: string;
+    confidence?: number;
+  }): Promise<IChatHistory>;
+  endSession(status?: 'completed' | 'abandoned'): Promise<IChatHistory>;
 }
 
 const MessageSchema = new Schema<IMessage>({
@@ -206,7 +225,7 @@ ChatHistorySchema.statics.getActiveSessions = function(limit = 10) {
 
 // Static method to get SOP usage statistics
 ChatHistorySchema.statics.getSOPUsageStats = async function(startDate?: Date, endDate?: Date) {
-  const match: any = {};
+  const match: { startedAt?: { $gte?: Date; $lte?: Date } } = {};
   if (startDate || endDate) {
     match.startedAt = {};
     if (startDate) match.startedAt.$gte = startDate;
@@ -249,6 +268,6 @@ ChatHistorySchema.methods.endSession = function(status: 'completed' | 'abandoned
   return this.save();
 };
 
-const ChatHistory = mongoose.models.ChatHistory || mongoose.model<IChatHistory>('ChatHistory', ChatHistorySchema);
+const ChatHistory = (mongoose.models.ChatHistory || mongoose.model<IChatHistory, IChatHistoryModel>('ChatHistory', ChatHistorySchema)) as IChatHistoryModel;
 
 export default ChatHistory;

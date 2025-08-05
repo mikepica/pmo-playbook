@@ -68,7 +68,7 @@ export default function SOPPage() {
     window.history.pushState({}, '', `/sop/${newSopId}`);
   };
 
-  const handleSOPsLoaded = (loadedSOPs: SOP[]) => {
+  const handleSOPsLoaded = () => {
     // This is now just for the SOPTabs component
   };
 

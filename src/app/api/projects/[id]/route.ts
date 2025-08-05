@@ -5,12 +5,12 @@ import Project from '@/models/Project';
 // GET specific project
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
     
-    const projectId = params.id;
+    const { id: projectId } = await params;
     const project = await Project.findOne({ projectId, isActive: true });
     
     if (!project) {
@@ -48,12 +48,12 @@ export async function GET(
 // PUT update project
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
     
-    const projectId = params.id;
+    const { id: projectId } = await params;
     const updates = await request.json();
     
     // Remove fields that shouldn't be updated
@@ -82,11 +82,11 @@ export async function PUT(
         projectName: project.projectName
       }
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to update project:', error);
     return NextResponse.json({ 
       error: 'Failed to update project',
-      details: error.message 
+      details: (error as Error).message 
     }, { status: 500 });
   }
 }
@@ -94,12 +94,12 @@ export async function PUT(
 // DELETE project (soft delete)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
     
-    const projectId = params.id;
+    const { id: projectId } = await params;
     
     const project = await Project.findOneAndUpdate(
       { projectId },

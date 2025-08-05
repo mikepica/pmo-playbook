@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   MessageSquare, 
   User, 
@@ -8,7 +8,6 @@ import {
   FileText, 
   ExternalLink, 
   Eye,
-  ChevronDown,
   Lightbulb
 } from 'lucide-react';
 
@@ -53,14 +52,7 @@ export default function FeedbackDetail({
   const [aiSuggestion, setAiSuggestion] = useState(feedback.aiSuggestion);
   const [loadingAI, setLoadingAI] = useState(false);
 
-  // Load AI suggestion if not present
-  useEffect(() => {
-    if (!aiSuggestion && !loadingAI) {
-      loadAISuggestion();
-    }
-  }, [feedback.feedbackId]);
-
-  const loadAISuggestion = async () => {
+  const loadAISuggestion = useCallback(async () => {
     setLoadingAI(true);
     try {
       const response = await fetch(`/api/user-feedback/${feedback.feedbackId}`);
@@ -73,7 +65,14 @@ export default function FeedbackDetail({
     } finally {
       setLoadingAI(false);
     }
-  };
+  }, [feedback.feedbackId]);
+
+  // Load AI suggestion if not present
+  useEffect(() => {
+    if (!aiSuggestion && !loadingAI) {
+      loadAISuggestion();
+    }
+  }, [feedback.feedbackId, aiSuggestion, loadingAI, loadAISuggestion]);
 
   const updateFeedback = async () => {
     setUpdating(true);
@@ -226,7 +225,7 @@ export default function FeedbackDetail({
         <div>
           <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
             <MessageSquare className="w-5 h-5 mr-2 text-blue-600" />
-            User's Original Question
+            User&apos;s Original Question
           </h3>
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-gray-800">&ldquo;{feedback.userQuestion}&rdquo;</p>
@@ -252,7 +251,7 @@ export default function FeedbackDetail({
         <div>
           <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
             <span className="text-orange-600 mr-2">💬</span>
-            User's Feedback
+            User&apos;s Feedback
           </h3>
           <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
             <p className="text-gray-800 font-medium">&ldquo;{feedback.userComment}&rdquo;</p>

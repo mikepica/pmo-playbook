@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FileText } from 'lucide-react';
 import ProposalList from '@/components/admin/ProposalList';
 import ProposalReview from '@/components/admin/ProposalReview';
@@ -36,11 +36,7 @@ export default function ProposalsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('pending_review');
 
-  useEffect(() => {
-    loadProposals();
-  }, [filter]);
-
-  const loadProposals = async () => {
+  const loadProposals = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`/api/proposals?status=${filter}&limit=50`);
@@ -54,7 +50,11 @@ export default function ProposalsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    loadProposals();
+  }, [loadProposals]);
 
   const handleProposalUpdate = (updatedProposal: Proposal) => {
     setProposals(prev => 

@@ -7,7 +7,12 @@ import { parseSOPMarkdown, validateSOPStructure } from './sop-parser';
 interface RegenerationResult {
   success: boolean;
   message: string;
-  agentSOP?: any;
+  agentSOP?: {
+    sopId: string;
+    title: string;
+    parsedContent: Record<string, unknown>;
+    version: number;
+  };
   errors?: string[];
   warnings?: string[];
 }

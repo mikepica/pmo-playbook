@@ -191,13 +191,13 @@ export async function DELETE(request: Request) {
 }
 
 // Helper function to generate AI summary
-async function generateSessionSummary(session: any): Promise<string> {
+async function generateSessionSummary(session: { messages: Array<{ role: string; content: string }> }): Promise<string> {
   try {
     // Get first few user messages to understand the topic
     const userMessages = session.messages
-      .filter((m: any) => m.role === 'user')
+      .filter((m) => m.role === 'user')
       .slice(0, 3)
-      .map((m: any) => m.content)
+      .map((m) => m.content)
       .join(' ');
 
     if (!userMessages) {

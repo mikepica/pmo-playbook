@@ -9,7 +9,7 @@ export default function NotFound() {
           <Briefcase className="w-24 h-24 text-gray-300 mx-auto mb-4" />
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Project Not Found</h1>
           <p className="text-gray-600 mb-6">
-            The project you're looking for doesn't exist or may have been removed.
+            The project you&apos;re looking for doesn&apos;t exist or may have been removed.
           </p>
         </div>
         

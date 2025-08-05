@@ -1,5 +1,17 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
+interface IAgentSOPModel extends mongoose.Model<IAgentSOP> {
+  getAllSummaries(): Promise<Array<{
+    sopId: string;
+    title: string;
+    phase: number;
+    summary: string;
+    keywords: string[];
+  }>>;
+  searchByKeywords(keywords: string[]): Promise<IAgentSOP[]>;
+  findBySopId(sopId: string): Promise<IAgentSOP | null>;
+}
+
 interface ISection {
   objectives: string[];
   keyActivities: string[];
@@ -26,6 +38,18 @@ export interface IAgentSOP extends Document {
   lastSyncedAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  
+  // Instance methods
+  generateAIContext(): {
+    sopId: string;
+    title: string;
+    phase: number;
+    summary: string;
+    description: string;
+    sections: ISection;
+    keywords: string[];
+    relatedSops: string[];
+  };
 }
 
 const SectionSchema = new Schema<ISection>({
@@ -201,6 +225,6 @@ AgentSOPSchema.methods.generateAIContext = function() {
   };
 };
 
-const AgentSOP = mongoose.models.AgentSOP || mongoose.model<IAgentSOP>('AgentSOP', AgentSOPSchema);
+const AgentSOP = (mongoose.models.AgentSOP || mongoose.model<IAgentSOP, IAgentSOPModel>('AgentSOP', AgentSOPSchema)) as IAgentSOPModel;
 
 export default AgentSOP;

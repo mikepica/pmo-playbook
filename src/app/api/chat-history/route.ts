@@ -32,7 +32,7 @@ export async function GET(request: Request) {
       exists: true
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Chat history retrieval error:', error);
     return NextResponse.json({ 
       error: 'Failed to retrieve chat history' 
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       messageCount: chatHistory.messages.length
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Chat history save error:', error);
     return NextResponse.json({ 
       error: 'Failed to save chat history' 
@@ -108,7 +108,7 @@ export async function PATCH(request: Request) {
       }))
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Active sessions retrieval error:', error);
     return NextResponse.json({ 
       error: 'Failed to retrieve active sessions' 

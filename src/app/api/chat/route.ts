@@ -32,10 +32,13 @@ export async function POST(request: Request) {
       const existingChat = await ChatHistory.findOne({ sessionId: currentSessionId });
       if (existingChat && existingChat.messages.length > 0) {
         // Get last few messages for context (excluding current message)
-        conversationContext = existingChat.messages.slice(-4).map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }));
+        conversationContext = existingChat.messages
+          .filter(msg => msg.role !== 'system')
+          .slice(-4)
+          .map(msg => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content
+          }));
       }
     } catch (contextError) {
       console.warn('Failed to load conversation context:', contextError);

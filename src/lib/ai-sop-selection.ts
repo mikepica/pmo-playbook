@@ -107,7 +107,7 @@ The confidence should be a number between 0 and 1, where 1 means you're complete
       result.confidence = Math.max(0, Math.min(1, result.confidence));
 
       return result;
-    } catch (parseError) {
+    } catch {
       throw new Error(`Failed to parse AI response as JSON: ${content}`);
     }
 
@@ -228,7 +228,7 @@ Instructions:
           phase: fullSOP.phase
         }
       };
-    } catch (parseError) {
+    } catch {
       throw new Error(`Failed to parse AI answer response as JSON: ${content}`);
     }
 

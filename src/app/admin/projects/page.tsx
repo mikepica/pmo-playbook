@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Calendar, Users, Briefcase, Search } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Edit2, Trash2, Users, Briefcase, Search } from 'lucide-react';
 import ProjectEditor from '@/components/admin/ProjectEditor';
 
 interface Project {
@@ -15,7 +15,7 @@ interface Project {
   businessCaseSummary: string;
   resourceRequirements: string;
   scopeDeliverables: string[];
-  keyDatesMilestones: any[];
+  keyDatesMilestones: Array<{ date: string; description: string }>;
   threats: string[];
   opportunities: string[];
   keyAssumptions: string[];
@@ -33,11 +33,7 @@ export default function ProjectsAdminPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
 
-  useEffect(() => {
-    fetchProjects();
-  }, [showInactive]);
-
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       const response = await fetch(`/api/projects?active=${!showInactive}`);
       const data = await response.json();
@@ -50,7 +46,12 @@ export default function ProjectsAdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showInactive]);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
 
   const handleCreateProject = () => {
     setSelectedProject(null);
@@ -83,7 +84,7 @@ export default function ProjectsAdminPage() {
     }
   };
 
-  const handleSaveProject = async (projectData: any) => {
+  const handleSaveProject = async (projectData: Partial<Project>) => {
     try {
       const url = selectedProject 
         ? `/api/projects/${selectedProject.projectId}`

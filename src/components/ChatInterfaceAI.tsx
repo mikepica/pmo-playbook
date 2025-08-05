@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, Trash2, ThumbsUp, ThumbsDown, Download } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, ThumbsUp, ThumbsDown, Download } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -72,7 +72,7 @@ export default function ChatInterfaceAI() {
     return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   };
 
-  const initializeSession = async (newSession = false) => {
+  const initializeSession = useCallback(async (newSession = false) => {
     // Get or create session ID from localStorage
     let storedSessionId = localStorage.getItem('pmo-chat-session');
     
@@ -126,7 +126,7 @@ export default function ChatInterfaceAI() {
     }
     
     setHistoryLoaded(true);
-  };
+  }, []);
 
   const startNewConversation = () => {
     // Save current session before starting new
@@ -137,13 +137,13 @@ export default function ChatInterfaceAI() {
     loadSessions();
   };
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       const response = await fetch(`/api/sessions?limit=20&currentSessionId=${sessionId || ''}`);
       const data = await response.json();
       
       if (data.sessions) {
-        setSessions(data.sessions.map((s: any) => ({
+        setSessions(data.sessions.map((s) => ({
           ...s,
           startedAt: new Date(s.startedAt),
           lastActive: new Date(s.lastActive)
@@ -152,7 +152,7 @@ export default function ChatInterfaceAI() {
     } catch (error) {
       console.error('Failed to load sessions:', error);
     }
-  };
+  }, [sessionId]);
 
   const switchToSession = async (targetSessionId: string) => {
     if (targetSessionId === sessionId) return;
@@ -620,7 +620,7 @@ export default function ChatInterfaceAI() {
           </div>
         </div>
         <p className="text-sm text-gray-600 mt-1">
-          Ask questions about project management - I'll automatically find the right SOP
+          Ask questions about project management - I&apos;ll automatically find the right SOP
         </p>
       </div>
 

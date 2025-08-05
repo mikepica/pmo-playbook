@@ -72,7 +72,7 @@ export default function ProjectEditor({ project, onSave, onCancel }: ProjectEdit
     }
   }, [project]);
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: string | string[] | Array<{ date: string; milestone: string }> | boolean) => {
     setFormData(prev => ({
       ...prev,
       [field]: value

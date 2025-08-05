@@ -6,15 +6,16 @@ import OpenAI from 'openai';
 // GET individual feedback
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
+    const { id } = await params;
 
     const feedback = await UserFeedback.findOne({ 
       $or: [
-        { feedbackId: params.id },
-        { _id: params.id }
+        { feedbackId: id },
+        { _id: id }
       ]
     });
 
@@ -51,13 +52,14 @@ export async function GET(
 // PATCH update feedback status, priority, or add admin notes
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
     const { status, priority, adminNotes } = body;
 
     await connectToDatabase();
+    const { id } = await params;
 
     const updateFields: Record<string, unknown> = {};
     if (status) updateFields.status = status;
@@ -67,8 +69,8 @@ export async function PATCH(
     const feedback = await UserFeedback.findOneAndUpdate(
       { 
         $or: [
-          { feedbackId: params.id },
-          { _id: params.id }
+          { feedbackId: id },
+          { _id: id }
         ]
       },
       updateFields,
@@ -99,16 +101,17 @@ export async function PATCH(
 // DELETE feedback (soft delete by setting status to closed)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
+    const { id } = await params;
 
     const feedback = await UserFeedback.findOneAndUpdate(
       { 
         $or: [
-          { feedbackId: params.id },
-          { _id: params.id }
+          { feedbackId: id },
+          { _id: id }
         ]
       },
       { status: 'closed', adminNotes: 'Feedback deleted by admin' },
@@ -136,7 +139,7 @@ export async function DELETE(
 }
 
 // Helper function to generate AI suggestion for feedback
-async function generateAISuggestion(feedback: any) {
+async function generateAISuggestion(feedback: { sopId: string; currentInstruction: string; userComment: string }) {
   if (!process.env.OPENAI_API_KEY) {
     return null;
   }

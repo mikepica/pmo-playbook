@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BarChart, TrendingUp, Users, MessageSquare, ThumbsUp, ThumbsDown, AlertCircle, FileText } from 'lucide-react';
+import { Users, MessageSquare, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react';
 
 interface AnalyticsData {
   userFeedback: {

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, User, Bot, Clock, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, User, Bot, Clock } from 'lucide-react';
 
 interface ConversationMessage {
   id: string;
@@ -38,11 +38,7 @@ export default function ConversationModal({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadConversation();
-  }, [sessionId, highlightMessageId]);
-
-  const loadConversation = async () => {
+  const loadConversation = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -65,7 +61,11 @@ export default function ConversationModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId, highlightMessageId]);
+
+  useEffect(() => {
+    loadConversation();
+  }, [loadConversation]);
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -159,7 +159,7 @@ export default function ConversationModal({
             </div>
           ) : conversation && conversation.messages.length > 0 ? (
             <div className="space-y-4">
-              {conversation.messages.map((message, index) => (
+              {conversation.messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex space-x-3 ${

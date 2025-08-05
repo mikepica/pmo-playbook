@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Types } from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ISOPVersionHistory extends Document {
   sopId: string;
@@ -93,7 +93,7 @@ SOPVersionHistorySchema.statics.getHistory = function(
   sopType?: 'human' | 'agent',
   limit: number = 10
 ) {
-  const query: any = { sopId };
+  const query: { sopId: string; sopType?: 'human' | 'agent' } = { sopId };
   if (sopType) query.sopType = sopType;
   
   return this.find(query)

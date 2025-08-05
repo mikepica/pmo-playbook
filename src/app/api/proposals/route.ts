@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import ChangeProposal from '@/models/ChangeProposal';
-import HumanSOP from '@/models/HumanSOP';
 import AgentSOP from '@/models/AgentSOP';
 
 // GET all proposals with filtering

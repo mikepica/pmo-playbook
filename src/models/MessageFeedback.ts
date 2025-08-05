@@ -1,5 +1,21 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+interface IMessageFeedbackModel extends mongoose.Model<IMessageFeedback> {
+  getConfidenceAccuracy(): Promise<Array<{
+    confidenceRange: string;
+    total: number;
+    helpful: number;
+    helpfulnessRate: number;
+  }>>;
+  getSOPStats(sopId: string): Promise<{
+    sopId: string;
+    totalRatings: number;
+    helpful: number;
+    notHelpful: number;
+    helpfulnessRate: number;
+  }>;
+}
+
 export interface IMessageFeedback extends Document {
   messageId: string;
   sessionId: string;
@@ -117,7 +133,7 @@ MessageFeedbackSchema.statics.getConfidenceAccuracy = async function() {
   ]);
 };
 
-const MessageFeedback = mongoose.models.MessageFeedback || 
-  mongoose.model<IMessageFeedback>('MessageFeedback', MessageFeedbackSchema);
+const MessageFeedback = (mongoose.models.MessageFeedback || 
+  mongoose.model<IMessageFeedback, IMessageFeedbackModel>('MessageFeedback', MessageFeedbackSchema)) as IMessageFeedbackModel;
 
 export default MessageFeedback;

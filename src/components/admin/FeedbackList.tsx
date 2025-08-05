@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Clock, User, ChevronRight, AlertCircle } from 'lucide-react';
 
 interface UserFeedback {
@@ -41,11 +41,7 @@ export default function FeedbackList({ selectedFeedback, onFeedbackSelect }: Fee
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>('all');
 
-  useEffect(() => {
-    loadFeedback();
-  }, [activeFilter]);
-
-  const loadFeedback = async () => {
+  const loadFeedback = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -66,7 +62,11 @@ export default function FeedbackList({ selectedFeedback, onFeedbackSelect }: Fee
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeFilter]);
+
+  useEffect(() => {
+    loadFeedback();
+  }, [loadFeedback]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {

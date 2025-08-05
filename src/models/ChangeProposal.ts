@@ -240,7 +240,7 @@ ChangeProposalSchema.statics.findSimilarProposals = async function(sopId: string
 
 // Static method to get proposals by status and priority
 ChangeProposalSchema.statics.getProposalsByStatusAndPriority = function(status?: string, priority?: string) {
-  const query: any = {};
+  const query: { status?: string; priority?: string } = {};
   if (status) query.status = status;
   if (priority) query.priority = priority;
   

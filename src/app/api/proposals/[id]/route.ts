@@ -5,12 +5,13 @@ import ChangeProposal from '@/models/ChangeProposal';
 // GET individual proposal
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
+    const { id } = await params;
 
-    const proposal = await ChangeProposal.findOne({ proposalId: params.id })
+    const proposal = await ChangeProposal.findOne({ proposalId: id })
       .populate('humanSopId', 'title version markdownContent');
 
     if (!proposal) {
@@ -34,15 +35,16 @@ export async function GET(
 // PATCH update proposal
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
     const { action, performedBy, comments, reason } = body;
 
     await connectToDatabase();
+    const { id } = await params;
 
-    const proposal = await ChangeProposal.findOne({ proposalId: params.id });
+    const proposal = await ChangeProposal.findOne({ proposalId: id });
     if (!proposal) {
       return NextResponse.json(
         { error: 'Proposal not found' },
@@ -100,12 +102,13 @@ export async function PATCH(
 // DELETE proposal (archive)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase();
+    const { id } = await params;
 
-    const proposal = await ChangeProposal.findOne({ proposalId: params.id });
+    const proposal = await ChangeProposal.findOne({ proposalId: id });
     if (!proposal) {
       return NextResponse.json(
         { error: 'Proposal not found' },

@@ -5,15 +5,16 @@ import ChatHistory from '@/models/ChatHistory';
 // GET conversation thread for a session
 export async function GET(
   request: Request,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
     const { searchParams } = new URL(request.url);
     const highlightMessageId = searchParams.get('highlightMessageId');
     
     await connectToDatabase();
+    const { sessionId } = await params;
 
-    const session = await ChatHistory.findOne({ sessionId: params.sessionId });
+    const session = await ChatHistory.findOne({ sessionId });
 
     if (!session) {
       return NextResponse.json(
@@ -23,7 +24,7 @@ export async function GET(
     }
 
     // Format messages for display
-    const formattedMessages = session.messages.map((message: any, index: number) => ({
+    const formattedMessages = session.messages.map((message, index: number) => ({
       id: message._id?.toString() || `msg-${index}`,
       role: message.role,
       content: message.content,

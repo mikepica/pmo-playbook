@@ -9,7 +9,7 @@ export default function NotFound() {
           <FileText className="w-24 h-24 text-gray-300 mx-auto mb-4" />
           <h1 className="text-4xl font-bold text-gray-900 mb-2">SOP Not Found</h1>
           <p className="text-gray-600 mb-6">
-            The SOP you're looking for doesn't exist or may have been moved.
+            The SOP you&apos;re looking for doesn&apos;t exist or may have been moved.
           </p>
         </div>
         
