@@ -26,6 +26,7 @@ interface Message {
 interface Session {
   sessionId: string;
   name: string;
+  sessionName: string;
   summary: string;
   messageCount: number;
   startedAt: Date;
@@ -69,7 +70,7 @@ export default function ChatInterfaceAI() {
   }, []);
 
   const generateSessionId = () => {
-    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   };
 
   const initializeSession = useCallback(async (newSession = false) => {
@@ -143,7 +144,7 @@ export default function ChatInterfaceAI() {
       const data = await response.json();
       
       if (data.sessions) {
-        setSessions(data.sessions.map((s) => ({
+        setSessions(data.sessions.map((s: any) => ({
           ...s,
           startedAt: new Date(s.startedAt),
           lastActive: new Date(s.lastActive)
