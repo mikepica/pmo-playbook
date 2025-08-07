@@ -63,7 +63,7 @@ export default function MarkdownViewerDB({ selectedSOP }: MarkdownViewerDBProps)
         <div className="text-center text-gray-500">
           <Database className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p>Select an SOP to view its content</p>
-          <p className="text-sm mt-2">Content loaded from MongoDB</p>
+          <p className="text-sm mt-2">Content loaded from PostgreSQL database</p>
         </div>
       </div>
     );

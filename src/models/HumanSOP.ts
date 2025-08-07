@@ -101,7 +101,7 @@ export class HumanSOPModel extends PostgresModel {
     };
   }
   
-  // Method to create version snapshot (compatible with MongoDB model)
+  // Method to create version snapshot for change tracking
   createSnapshot(sop: HumanSOPRecord) {
     return {
       sopId: sop.sopId,

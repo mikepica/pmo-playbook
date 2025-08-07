@@ -1,47 +1,40 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import ChangeProposal from '@/models/ChangeProposal';
-import AgentSOP from '@/models/AgentSOP';
+import { ChangeProposal } from '@/models/ChangeProposal';
 
 // GET all proposals with filtering
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
-    const priority = searchParams.get('priority');
     const sopId = searchParams.get('sopId');
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const skip = parseInt(searchParams.get('skip') || '0');
-
-    await connectToDatabase();
-
-    // Build query
-    const query: Record<string, unknown> = {};
-    if (status) query.status = status;
-    if (priority) query.priority = priority;
-    if (sopId) query.sopId = sopId;
-
-    // Get proposals with pagination
-    const proposals = await ChangeProposal.find(query)
-      .populate('humanSopId', 'title version')
-      .sort({ priority: -1, 'metrics.confidenceScore': -1, createdAt: -1 })
-      .limit(limit)
-      .skip(skip);
-
-    // Get total count for pagination
-    const totalCount = await ChangeProposal.countDocuments(query);
-
+    
+    let proposals;
+    
+    if (status) {
+      proposals = await ChangeProposal.findByStatus(status);
+    } else if (sopId) {
+      proposals = await ChangeProposal.findBySopId(sopId);
+    } else {
+      // Get all proposals (limited for performance)
+      const results = await ChangeProposal.findMany({}, { orderBy: 'created_at DESC', limit: 100 });
+      proposals = results.map(row => ({
+        id: row.id,
+        proposalId: row.proposal_id,
+        sopId: row.sop_id,
+        data: row.data,
+        status: row.status,
+        priority: row.priority,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+    }
+    
     return NextResponse.json({
+      success: true,
       proposals,
-      pagination: {
-        total: totalCount,
-        limit,
-        skip,
-        hasMore: skip + limit < totalCount
-      }
+      total: proposals.length
     });
-
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Error fetching proposals:', error);
     return NextResponse.json(
       { error: 'Failed to fetch proposals' },
@@ -55,120 +48,49 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
+      proposalTitle,
+      proposalDescription,
       sopId,
-      triggerQuery,
-      conversationContext,
-      proposedChange,
-      metrics
+      originalContent,
+      proposedContent,
+      justification,
+      impactAssessment,
+      submittedBy
     } = body;
-
-    // Validate required fields
-    if (!sopId || !triggerQuery || !proposedChange) {
+    
+    if (!proposalTitle || !proposalDescription || !sopId || !proposedContent || !justification || !submittedBy) {
       return NextResponse.json(
-        { error: 'Missing required fields: sopId, triggerQuery, proposedChange' },
+        { error: 'Missing required fields' },
         { status: 400 }
       );
     }
-
-    await connectToDatabase();
-
-    // Get the humanSopId from the sopId
-    const agentSOP = await AgentSOP.findOne({ sopId }).select('humanSopId');
-    if (!agentSOP) {
-      return NextResponse.json(
-        { error: `SOP ${sopId} not found` },
-        { status: 404 }
-      );
-    }
-
-    // Check for similar existing proposals to avoid duplicates
-    const similarProposals = await ChangeProposal.findSimilarProposals(
+    
+    const proposalId = `prop-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const proposalData = {
+      proposalTitle,
+      proposalDescription,
       sopId,
-      proposedChange.section,
-      proposedChange.changeType || 'clarification'
-    );
-
-    // If very similar proposal exists (same section and recent), update metrics instead
-    if (similarProposals.length > 0) {
-      const recentProposal = similarProposals.find(p => {
-        const hoursSinceCreation = (Date.now() - p.createdAt.getTime()) / (1000 * 60 * 60);
-        return hoursSinceCreation < 24 && p.status === 'pending_review';
-      });
-
-      if (recentProposal) {
-        // Update existing proposal metrics
-        recentProposal.metrics.affectedUsersCount += 1;
-        recentProposal.metrics.similarProposalsCount = similarProposals.length;
-        await recentProposal.save();
-
-        return NextResponse.json({
-          proposal: recentProposal,
-          isUpdate: true,
-          message: 'Updated existing similar proposal metrics'
-        });
-      }
-    }
-
-    // Create new proposal
-    const proposal = await ChangeProposal.create({
-      sopId,
-      humanSopId: agentSOP.humanSopId,
-      triggerQuery,
-      conversationContext: conversationContext || {
-        sessionId: `session-${Date.now()}`,
-        messages: [{ role: 'user', content: triggerQuery }],
-        timestamp: new Date()
-      },
-      proposedChange: {
-        ...proposedChange,
-        changeType: proposedChange.changeType || 'clarification'
-      },
-      metrics: {
-        confidenceScore: metrics?.confidenceScore || 0.7,
-        affectedUsersCount: 1,
-        similarProposalsCount: similarProposals.length
-      },
-      tags: extractTags(proposedChange)
-    });
-
+      originalContent,
+      proposedContent,
+      justification,
+      impactAssessment,
+      submittedBy
+    };
+    
+    const proposal = await ChangeProposal.create(proposalId, sopId, proposalData);
+    
     return NextResponse.json({
-      proposal,
-      isUpdate: false,
-      similarCount: similarProposals.length
-    }, { status: 201 });
-
-  } catch (error: unknown) {
+      success: true,
+      message: 'Proposal created successfully',
+      proposalId: proposal.proposalId,
+      proposal
+    });
+  } catch (error) {
     console.error('Error creating proposal:', error);
     return NextResponse.json(
       { error: 'Failed to create proposal' },
       { status: 500 }
     );
   }
-}
-
-// Helper function to extract tags from proposed change
-function extractTags(proposedChange: { section: string; changeType?: string }): string[] {
-  const tags: string[] = [];
-  
-  // Add section as tag
-  if (proposedChange.section) {
-    tags.push(proposedChange.section.toLowerCase().replace(/\s+/g, '-'));
-  }
-  
-  // Add change type as tag
-  if (proposedChange.changeType) {
-    tags.push(proposedChange.changeType);
-  }
-  
-  // Add common keywords
-  const keywords = ['template', 'checklist', 'process', 'role', 'deliverable', 'tool'];
-  const content = JSON.stringify(proposedChange).toLowerCase();
-  
-  keywords.forEach(keyword => {
-    if (content.includes(keyword)) {
-      tags.push(keyword);
-    }
-  });
-  
-  return [...new Set(tags)]; // Remove duplicates
 }

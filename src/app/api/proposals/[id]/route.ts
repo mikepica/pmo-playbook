@@ -1,29 +1,27 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import ChangeProposal from '@/models/ChangeProposal';
+import { ChangeProposal } from '@/models/ChangeProposal';
 
-// GET individual proposal
+// GET specific proposal by ID
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await connectToDatabase();
     const { id } = await params;
-
-    const proposal = await ChangeProposal.findOne({ proposalId: id })
-      .populate('humanSopId', 'title version markdownContent');
-
+    const proposal = await ChangeProposal.findByProposalId(id);
+    
     if (!proposal) {
       return NextResponse.json(
         { error: 'Proposal not found' },
         { status: 404 }
       );
     }
-
-    return NextResponse.json({ proposal });
-
-  } catch (error: unknown) {
+    
+    return NextResponse.json({
+      success: true,
+      proposal
+    });
+  } catch (error) {
     console.error('Error fetching proposal:', error);
     return NextResponse.json(
       { error: 'Failed to fetch proposal' },
@@ -32,65 +30,38 @@ export async function GET(
   }
 }
 
-// PATCH update proposal
-export async function PATCH(
+// PUT update proposal status or review
+export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const body = await request.json();
-    const { action, performedBy, comments, reason } = body;
-
-    await connectToDatabase();
     const { id } = await params;
-
-    const proposal = await ChangeProposal.findOne({ proposalId: id });
-    if (!proposal) {
+    const body = await request.json();
+    const { status, reviewComments } = body;
+    
+    if (!status) {
+      return NextResponse.json(
+        { error: 'Status is required' },
+        { status: 400 }
+      );
+    }
+    
+    const updatedProposal = await ChangeProposal.updateStatus(id, status, reviewComments);
+    
+    if (!updatedProposal) {
       return NextResponse.json(
         { error: 'Proposal not found' },
         { status: 404 }
       );
     }
-
-    // Handle different actions
-    switch (action) {
-      case 'approve':
-        await proposal.approve(performedBy || 'admin', comments);
-        break;
-      
-      case 'reject':
-        if (!reason) {
-          return NextResponse.json(
-            { error: 'Rejection reason is required' },
-            { status: 400 }
-          );
-        }
-        await proposal.reject(performedBy || 'admin', reason);
-        break;
-      
-      case 'review':
-        proposal.reviewHistory.push({
-          action: 'reviewed',
-          performedBy: performedBy || 'admin',
-          timestamp: new Date(),
-          comments
-        });
-        await proposal.save();
-        break;
-      
-      default:
-        return NextResponse.json(
-          { error: 'Invalid action. Use: approve, reject, or review' },
-          { status: 400 }
-        );
-    }
-
-    return NextResponse.json({ 
-      proposal,
-      message: `Proposal ${action}ed successfully`
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Proposal updated successfully',
+      proposal: updatedProposal
     });
-
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Error updating proposal:', error);
     return NextResponse.json(
       { error: 'Failed to update proposal' },
@@ -99,42 +70,20 @@ export async function PATCH(
   }
 }
 
-// DELETE proposal (archive)
+// DELETE proposal (placeholder - not implemented)
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await connectToDatabase();
-    const { id } = await params;
-
-    const proposal = await ChangeProposal.findOne({ proposalId: id });
-    if (!proposal) {
-      return NextResponse.json(
-        { error: 'Proposal not found' },
-        { status: 404 }
-      );
-    }
-
-    // Archive instead of delete
-    proposal.status = 'archived';
-    proposal.reviewHistory.push({
-      action: 'archived',
-      performedBy: 'admin',
-      timestamp: new Date(),
-      comments: 'Proposal archived'
-    });
-    await proposal.save();
-
-    return NextResponse.json({ 
-      message: 'Proposal archived successfully',
-      proposal
-    });
-
-  } catch (error: unknown) {
-    console.error('Error archiving proposal:', error);
     return NextResponse.json(
-      { error: 'Failed to archive proposal' },
+      { message: 'Delete functionality not yet implemented in PostgreSQL version' },
+      { status: 501 }
+    );
+  } catch (error) {
+    console.error('Error deleting proposal:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete proposal' },
       { status: 500 }
     );
   }

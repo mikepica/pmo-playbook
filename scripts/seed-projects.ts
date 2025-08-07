@@ -1,5 +1,4 @@
-import { connectToDatabase } from '../src/lib/mongodb';
-import Project from '../src/models/Project';
+import { Project } from '../src/models/Project';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -8,9 +7,12 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 async function seedProjects() {
   try {
-    await connectToDatabase();
-    console.log('Connected to MongoDB');
-
+    console.log('⚠️  NOTICE: This seed script needs to be updated for PostgreSQL models.');
+    console.log('The project data has already been migrated from MongoDB to PostgreSQL.');
+    console.log('Use the main application to create new projects or update existing ones.');
+    return;
+    
+    // TODO: Update this seeding logic to use PostgreSQL models
     // Sample Project 1: Digital Transformation Initiative
     const project1 = new Project({
       projectId: 'PRO-001',

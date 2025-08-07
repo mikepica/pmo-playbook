@@ -139,7 +139,7 @@ export class ProjectModel extends PostgresModel {
     return `PRO-${nextNumber.toString().padStart(3, '0')}`;
   }
   
-  // Method to get summary compatible with MongoDB model
+  // Method to get project summary for API responses
   getSummary(project: ProjectRecord) {
     const nextMilestone = project.data.keyDatesMilestones
       ?.filter(m => new Date(m.date) > new Date())

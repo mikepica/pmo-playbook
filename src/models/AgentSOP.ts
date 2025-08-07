@@ -17,7 +17,7 @@ export interface AgentSOPData {
   sections: AgentSOPSection;
   keywords: string[];
   relatedSopIds: string[];
-  humanSopId?: string; // Original MongoDB ObjectId stored as string
+  humanSopId?: string; // Reference to related HumanSOP ID
 }
 
 export interface AgentSOPRecord {
@@ -154,7 +154,7 @@ export class AgentSOPModel extends PostgresModel {
     };
   }
   
-  // Method to generate AI context (compatible with MongoDB model)
+  // Method to generate AI context for LLM consumption
   generateAIContext(sop: AgentSOPRecord) {
     return {
       sopId: sop.sopId,

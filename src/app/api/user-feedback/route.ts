@@ -1,81 +1,33 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import UserFeedback from '@/models/UserFeedback';
-import ChatHistory from '@/models/ChatHistory';
-import AgentSOP from '@/models/AgentSOP';
+import { UserFeedback } from '@/models/UserFeedback';
 
 // GET all user feedback with filtering
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
-    const priority = searchParams.get('priority');
-    const sopId = searchParams.get('sopId');
-    const analytics = searchParams.get('analytics');
+    const sessionId = searchParams.get('sessionId');
     const limit = parseInt(searchParams.get('limit') || '50');
-    const skip = parseInt(searchParams.get('skip') || '0');
 
-    await connectToDatabase();
-
-    // Return analytics data
-    if (analytics === 'true') {
-      const totalReports = await UserFeedback.countDocuments();
-      
-      const byStatus = await UserFeedback.aggregate([
-        { $group: { _id: '$status', count: { $sum: 1 } } }
-      ]);
-      
-      const bySOP = await UserFeedback.aggregate([
-        { $group: { _id: '$sopId', count: { $sum: 1 } } },
-        { $sort: { count: -1 } }
-      ]);
-      
-      const recentGaps = await UserFeedback.find()
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .select('sopId userComment createdAt');
-      
-      return NextResponse.json({
-        totalReports,
-        byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
-        bySOP: bySOP.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
-        recentGaps
-      });
+    let feedback;
+    
+    if (status) {
+      feedback = await UserFeedback.findByStatus(status);
+    } else if (sessionId) {
+      feedback = await UserFeedback.findBySessionId(sessionId);
+    } else {
+      feedback = await UserFeedback.getAllFeedback(limit);
     }
 
-    // Build query
-    const query: Record<string, unknown> = {};
-    if (status) query.status = status;
-    if (priority) query.priority = priority;
-    if (sopId) query.sopId = sopId;
-
-    // Get feedback with pagination
-    const feedback = await UserFeedback.find(query)
-      .sort({ priority: -1, createdAt: -1 })
-      .limit(limit)
-      .skip(skip);
-
-    // Get total count for pagination
-    const totalCount = await UserFeedback.countDocuments(query);
-
-    // Get status counts for filter options
-    const statusCounts = await UserFeedback.getFeedbackWithCounts();
-
     return NextResponse.json({
+      success: true,
       feedback,
-      statusCounts,
-      pagination: {
-        total: totalCount,
-        limit,
-        skip,
-        hasMore: skip + limit < totalCount
-      }
+      total: feedback.length
     });
-
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Error fetching user feedback:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch feedback' },
+      { error: 'Failed to fetch user feedback' },
       { status: 500 }
     );
   }
@@ -86,66 +38,48 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
+      feedbackType,
+      title,
+      description,
       sessionId,
-      messageId,
-      userQuestion,
-      aiResponse,
-      userComment,
       sopId,
-      sopTitle,
-      confidence
+      rating,
+      submittedBy,
+      userEmail
     } = body;
 
-    // Validate required fields
-    if (!sessionId || !userQuestion || !aiResponse || !userComment || !sopId) {
+    if (!feedbackType || !title || !description || !submittedBy) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: feedbackType, title, description, submittedBy' },
         { status: 400 }
       );
     }
 
-    await connectToDatabase();
-
-    // Verify the session exists
-    const chatSession = await ChatHistory.findOne({ sessionId });
-    if (!chatSession) {
-      return NextResponse.json(
-        { error: 'Chat session not found' },
-        { status: 404 }
-      );
-    }
-
-    // Get SOP info if not provided
-    let resolvedSopTitle = sopTitle;
-    if (!resolvedSopTitle && sopId) {
-      const agentSOP = await AgentSOP.findOne({ sopId }).select('title');
-      resolvedSopTitle = agentSOP?.title || 'Unknown SOP';
-    }
-
-    // Create new feedback
-    const feedback = await UserFeedback.create({
+    const feedbackId = `fb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const feedbackData = {
+      feedbackType,
+      title,
+      description,
       sessionId,
-      messageId: messageId || `msg-${Date.now()}`,
-      userQuestion,
-      aiResponse,
-      userComment,
       sopId,
-      sopTitle: resolvedSopTitle,
-      sopSection: '', // Will be populated when admin reviews
-      confidence: confidence || 0.5,
-      status: 'pending',
-      priority: 'medium' // User feedback always starts as medium priority
-    });
+      rating,
+      submittedBy,
+      userEmail
+    };
+
+    const feedback = await UserFeedback.create(feedbackId, feedbackData, sessionId);
 
     return NextResponse.json({
-      feedback,
-      message: 'Thank you for your feedback. We will review this and improve our knowledge base.'
-    }, { status: 201 });
-
-  } catch (error: unknown) {
+      success: true,
+      message: 'Feedback submitted successfully',
+      feedbackId: feedback.feedbackId,
+      feedback
+    });
+  } catch (error) {
     console.error('Error creating user feedback:', error);
     return NextResponse.json(
-      { error: 'Failed to create feedback' },
+      { error: 'Failed to submit feedback' },
       { status: 500 }
     );
   }

@@ -1,4 +1,4 @@
-// MongoDB connection no longer needed
+// PostgreSQL database connection handled by models
 import { HumanSOP } from '@/models/HumanSOP';
 import { AgentSOP } from '@/models/AgentSOP';
 import { parseSOPMarkdown, validateSOPStructure } from './sop-parser';
