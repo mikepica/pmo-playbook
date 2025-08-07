@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
-import HumanSOP from '@/models/HumanSOP';
-import AgentSOP from '@/models/AgentSOP';
+import MongoHumanSOP from '@/models/HumanSOP';
+import MongoAgentSOP from '@/models/AgentSOP';
+import { HumanSOP as PostgresHumanSOP } from '@/models/postgres/HumanSOP';
+import { AgentSOP as PostgresAgentSOP } from '@/models/postgres/AgentSOP';
+import { DATABASE_CONFIG } from '@/lib/database-config';
 import { regenerateAgentSOP } from '@/lib/sop-regenerator';
 
 export async function GET(request: Request) {
@@ -11,17 +14,32 @@ export async function GET(request: Request) {
   const all = searchParams.get('all'); // Get all SOPs
   
   try {
-    await connectToDatabase();
     
     // If requesting all SOPs
     if (all === 'true') {
       if (type === 'human') {
-        const sops = await HumanSOP.find({ isActive: true })
-          .select('sopId title phase version markdownContent updatedAt')
-          .sort({ phase: 1 });
+        let sops;
         
-        return NextResponse.json({ 
-          sops: sops.map(sop => ({
+        if (DATABASE_CONFIG.humanSops === 'postgres') {
+          // Use PostgreSQL
+          const pgSops = await PostgresHumanSOP.getAllActiveSOPs();
+          sops = pgSops.map(sop => ({
+            _id: sop.id.toString(),
+            sopId: sop.sopId,
+            title: sop.data.title,
+            phase: sop.phase,
+            version: sop.version,
+            markdownContent: sop.data.markdownContent,
+            updatedAt: sop.updatedAt
+          }));
+        } else {
+          // Use MongoDB
+          await connectToDatabase();
+          const mongoSops = await MongoHumanSOP.find({ isActive: true })
+            .select('sopId title phase version markdownContent updatedAt')
+            .sort({ phase: 1 });
+          
+          sops = mongoSops.map(sop => ({
             _id: sop._id,
             sopId: sop.sopId,
             title: sop.title,
@@ -29,8 +47,10 @@ export async function GET(request: Request) {
             version: sop.version,
             markdownContent: sop.markdownContent,
             updatedAt: sop.updatedAt
-          }))
-        });
+          }));
+        }
+        
+        return NextResponse.json({ sops });
       }
       // Could add agent SOP listing here if needed
       return NextResponse.json({ error: 'Agent SOP listing not implemented' }, { status: 400 });
@@ -41,32 +61,65 @@ export async function GET(request: Request) {
     }
     
     if (type === 'human') {
-      const sop = await HumanSOP.findOne({ sopId, isActive: true });
+      let sop;
       
-      if (!sop) {
-        return NextResponse.json({ error: 'SOP not found' }, { status: 404 });
+      if (DATABASE_CONFIG.humanSops === 'postgres') {
+        // Use PostgreSQL
+        sop = await PostgresHumanSOP.findBySopId(sopId);
+        if (sop) {
+          return NextResponse.json({ 
+            content: sop.data.markdownContent,
+            title: sop.data.title,
+            phase: sop.phase,
+            version: sop.version,
+            updatedAt: sop.updatedAt
+          });
+        }
+      } else {
+        // Use MongoDB
+        await connectToDatabase();
+        sop = await MongoHumanSOP.findOne({ sopId, isActive: true });
+        if (sop) {
+          return NextResponse.json({ 
+            content: sop.markdownContent,
+            title: sop.title,
+            phase: sop.phase,
+            version: sop.version,
+            updatedAt: sop.updatedAt
+          });
+        }
       }
       
-      return NextResponse.json({ 
-        content: sop.markdownContent,
-        title: sop.title,
-        phase: sop.phase,
-        version: sop.version,
-        updatedAt: sop.updatedAt
-      });
+      return NextResponse.json({ error: 'SOP not found' }, { status: 404 });
     } else if (type === 'agent') {
-      const sop = await AgentSOP.findOne({ sopId, isActive: true });
+      let sop;
       
-      if (!sop) {
-        return NextResponse.json({ error: 'SOP not found' }, { status: 404 });
+      if (DATABASE_CONFIG.agentSops === 'postgres') {
+        // Use PostgreSQL
+        sop = await PostgresAgentSOP.findBySopId(sopId);
+        if (sop) {
+          return NextResponse.json({ 
+            content: PostgresAgentSOP.generateAIContext(sop),
+            title: sop.data.title,
+            phase: sop.phase,
+            summary: sop.data.summary
+          });
+        }
+      } else {
+        // Use MongoDB
+        await connectToDatabase();
+        sop = await MongoAgentSOP.findOne({ sopId, isActive: true });
+        if (sop) {
+          return NextResponse.json({ 
+            content: sop.generateAIContext(),
+            title: sop.title,
+            phase: sop.phase,
+            summary: sop.summary
+          });
+        }
       }
       
-      return NextResponse.json({ 
-        content: sop.generateAIContext(),
-        title: sop.title,
-        phase: sop.phase,
-        summary: sop.summary
-      });
+      return NextResponse.json({ error: 'SOP not found' }, { status: 404 });
     }
     
     return NextResponse.json({ error: 'Invalid type parameter' }, { status: 400 });
