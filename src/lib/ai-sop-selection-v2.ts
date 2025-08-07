@@ -163,7 +163,7 @@ export async function generateMultiSOPAnswer(
     );
 
     const primarySop = primarySOPs[0] || fullSOPs[0]; // Ensure we have a primary
-    const sopContexts = fullSOPs.map(sop => AgentSOP.prototype.generateAIContext(sop));
+    const sopContexts = fullSOPs.map(sop => AgentSOP.generateAIContext(sop));
 
     // Build the prompt
     const systemPrompt = getPrompt('sop_generation_system');
