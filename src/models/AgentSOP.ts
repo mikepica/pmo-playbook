@@ -142,7 +142,7 @@ export class AgentSOPModel extends PostgresModel {
     ].join(' ').toLowerCase();
   }
   
-  private mapToRecord(row: any): AgentSOPRecord {
+  mapToRecord(row: any): AgentSOPRecord {
     return {
       id: row.id,
       sopId: row.sop_id,

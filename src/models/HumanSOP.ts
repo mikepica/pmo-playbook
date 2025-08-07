@@ -58,12 +58,28 @@ export class HumanSOPModel extends PostgresModel {
     return this.mapToRecord(result);
   }
   
+  async updateById(id: number, data: HumanSOPData, version: number, phase: number): Promise<HumanSOPRecord> {
+    const results = await super.update(
+      { id },
+      { 
+        data: JSON.stringify(data),
+        version,
+        phase
+      }
+    );
+    
+    if (results.length > 0) {
+      return this.mapToRecord(results[0]);
+    }
+    throw new Error('Update failed - no rows returned');
+  }
+
   async updateSOP(sopId: string, updates: Partial<HumanSOPData>): Promise<HumanSOPRecord | null> {
     const existing = await this.findOne({ sop_id: sopId });
     if (!existing) return null;
     
     const mergedData = { ...existing.data, ...updates };
-    const results = await this.update(
+    const results = await super.update(
       { sop_id: sopId },
       { 
         data: JSON.stringify(mergedData),

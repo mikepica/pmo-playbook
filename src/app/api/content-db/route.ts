@@ -92,7 +92,7 @@ export async function PUT(request: Request) {
     };
     
     const newVersion = (existingSOP.version || 1) + 1;
-    await HumanSOP.update(existingSOP.id, updatedData, newVersion, existingSOP.phase);
+    await HumanSOP.updateById(existingSOP.id, updatedData, newVersion, existingSOP.phase);
     
     // Get the updated SOP for response
     const updatedSOP = await HumanSOP.findBySopId(sopId);

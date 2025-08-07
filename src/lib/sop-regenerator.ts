@@ -18,10 +18,8 @@ interface RegenerationResult {
 
 export async function regenerateAgentSOP(sopId: string): Promise<RegenerationResult> {
   try {
-    await connectToDatabase();
-    
     // Fetch the HumanSOP
-    const humanSOP = await HumanSOP.findOne({ sopId, isActive: true });
+    const humanSOP = await HumanSOP.findBySopId(sopId);
     
     if (!humanSOP) {
       return {
@@ -31,7 +29,7 @@ export async function regenerateAgentSOP(sopId: string): Promise<RegenerationRes
     }
     
     // Parse the markdown content
-    const parsedSOP = parseSOPMarkdown(humanSOP.markdownContent, sopId);
+    const parsedSOP = parseSOPMarkdown(humanSOP.data.markdownContent, sopId);
     
     // Validate the structure
     const validation = validateSOPStructure(parsedSOP);
@@ -46,77 +44,66 @@ export async function regenerateAgentSOP(sopId: string): Promise<RegenerationRes
     }
     
     // Find existing AgentSOP
-    const existingAgentSOP = await AgentSOP.findOne({ sopId, isActive: true });
+    const existingAgentSOP = await AgentSOP.findBySopId(sopId);
     
     if (existingAgentSOP) {
       // Update existing AgentSOP
-      existingAgentSOP.title = parsedSOP.title;
-      existingAgentSOP.phase = parsedSOP.phase;
-      existingAgentSOP.summary = parsedSOP.summary;
-      existingAgentSOP.description = parsedSOP.description;
-      existingAgentSOP.sections = parsedSOP.sections;
-      existingAgentSOP.keywords = parsedSOP.keywords;
-      existingAgentSOP.version = (existingAgentSOP.version || 1) + 1;
-      existingAgentSOP.lastSyncedAt = new Date();
-      
-      await existingAgentSOP.save();
-      
-      // Track version history
-      await SOPVersionHistory.createVersion(
-        sopId,
-        'agent',
-        existingAgentSOP.version,
-        existingAgentSOP.toObject(),
-        'regenerate',
-        'system',
-        {
-          previousVersion: existingAgentSOP.version - 1,
-          regenerationWarnings: validation.warnings
-        }
-      );
-      
-      return {
-        success: true,
-        message: `AgentSOP ${sopId} regenerated successfully (v${existingAgentSOP.version})`,
-        agentSOP: existingAgentSOP,
-        warnings: validation.warnings
-      };
-    } else {
-      // Create new AgentSOP
-      const newAgentSOP = new AgentSOP({
-        sopId,
-        humanSopId: humanSOP._id,
+      const newVersion = (existingAgentSOP.version || 1) + 1;
+      const updatedData = {
         title: parsedSOP.title,
-        phase: parsedSOP.phase,
         summary: parsedSOP.summary,
         description: parsedSOP.description,
         sections: parsedSOP.sections,
         keywords: parsedSOP.keywords,
         relatedSopIds: getRelatedSOPIds(parsedSOP.phase),
-        version: 1,
-        isActive: true,
-        lastSyncedAt: new Date()
-      });
+        humanSopId: humanSOP.id.toString()
+      };
       
-      await newAgentSOP.save();
-      
-      // Track version history
-      await SOPVersionHistory.createVersion(
-        sopId,
-        'agent',
-        1,
-        newAgentSOP.toObject(),
-        'create',
-        'system',
-        {
-          regenerationWarnings: validation.warnings
+      const results = await AgentSOP.update(
+        { id: existingAgentSOP.id },
+        { 
+          data: JSON.stringify(updatedData),
+          version: newVersion,
+          last_synced_at: new Date()
         }
       );
+      
+      const updatedAgentSOP = results[0] ? AgentSOP.mapToRecord(results[0]) : null;
+      
+      return {
+        success: true,
+        message: `AgentSOP ${sopId} regenerated successfully (v${newVersion})`,
+        agentSOP: {
+          sopId: sopId,
+          title: parsedSOP.title,
+          parsedContent: updatedData,
+          version: newVersion
+        },
+        warnings: validation.warnings
+      };
+    } else {
+      // Create new AgentSOP
+      const agentSOPData = {
+        title: parsedSOP.title,
+        summary: parsedSOP.summary,
+        description: parsedSOP.description,
+        sections: parsedSOP.sections,
+        keywords: parsedSOP.keywords,
+        relatedSopIds: getRelatedSOPIds(parsedSOP.phase),
+        humanSopId: humanSOP.id.toString()
+      };
+      
+      const newAgentSOP = await AgentSOP.createSOP(sopId, parsedSOP.phase, agentSOPData, humanSOP.id);
       
       return {
         success: true,
         message: `AgentSOP ${sopId} created successfully`,
-        agentSOP: newAgentSOP,
+        agentSOP: {
+          sopId: sopId,
+          title: parsedSOP.title,
+          parsedContent: agentSOPData,
+          version: 1
+        },
         warnings: validation.warnings
       };
     }
@@ -136,8 +123,6 @@ export async function regenerateAllAgentSOPs(): Promise<{
   results: RegenerationResult[];
 }> {
   try {
-    await connectToDatabase();
-    
     // Get all active HumanSOPs
     const humanSOPs = await HumanSOP.getAllActiveSOPs();
     
@@ -184,10 +169,8 @@ function getRelatedSOPIds(phase: number): string[] {
 // Function to check if AgentSOP needs regeneration
 export async function checkRegenerationNeeded(sopId: string): Promise<boolean> {
   try {
-    await connectToDatabase();
-    
-    const humanSOP = await HumanSOP.findOne({ sopId, isActive: true });
-    const agentSOP = await AgentSOP.findOne({ sopId, isActive: true });
+    const humanSOP = await HumanSOP.findBySopId(sopId);
+    const agentSOP = await AgentSOP.findBySopId(sopId);
     
     if (!humanSOP || !agentSOP) {
       return true; // Need to regenerate if either is missing
