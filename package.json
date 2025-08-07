@@ -15,9 +15,18 @@
     "test-ai": "tsx scripts/test-ai-selection.ts",
     "test-proposals": "tsx scripts/test-proposals.ts",
     "check-proposals": "tsx scripts/check-proposals.ts",
-    "test-regeneration": "tsx scripts/test-sop-regeneration.ts"
+    "test-regeneration": "tsx scripts/test-sop-regeneration.ts",
+    "test-postgres": "tsx scripts/test-postgres-connection.ts",
+    "create-schema": "tsx scripts/create-postgres-schema.ts",
+    "drop-schema": "tsx scripts/drop-postgres-schema.ts",
+    "verify-schema": "tsx scripts/verify-postgres-schema.ts",
+    "export-data": "tsx scripts/export-mongodb-data.ts",
+    "import-data": "tsx scripts/import-to-postgres.ts",
+    "verify-migration": "tsx scripts/verify-postgres-data.ts",
+    "test-projects-api": "tsx scripts/test-projects-api.ts"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.1",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/js-yaml": "^4.0.9",
     "dotenv": "^17.2.0",
@@ -35,6 +44,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
+    "@types/pg": "^8.15.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

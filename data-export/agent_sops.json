@@ -1,0 +1,394 @@
+[
+  {
+    "_id": "687e743f63cecec06f8f2215",
+    "sopId": "SOP-001",
+    "humanSopId": "687e743f63cecec06f8f2212",
+    "title": "PMO SOP – Pre-Initiation Phase",
+    "phase": 1,
+    "summary": "Define and assess the strategic need, business case, and alignment of the project with organizational goals before formal initiation.",
+    "description": "Define and assess the strategic need, business case, and alignment of the project with organizational goals before formal initiation.",
+    "sections": {
+      "objectives": [
+        "Define and assess the strategic need, business case, and alignment of the project with organizational goals before formal initiation."
+      ],
+      "keyActivities": [
+        "Capture high-level idea or request.",
+        "Conduct initial stakeholder engagement.",
+        "Assess strategic alignment and value.",
+        "Draft preliminary business case.",
+        "Estimate rough order of magnitude (ROM) for cost and timeline.",
+        "Identify potential risks and constraints.",
+        "Determine initial resource availability."
+      ],
+      "deliverables": [
+        "Project Request Form / Idea Brief",
+        "Preliminary Business Case. changeD for AGENTSOP",
+        "High-Level Risk/Benefit Analysis",
+        "Go/No-Go Recommendation for Initiation"
+      ],
+      "rolesResponsibilities": [],
+      "toolsTemplates": [
+        "Project Intake Form",
+        "Business Case Template",
+        "Strategic Alignment Checklist"
+      ],
+      "bestPractices": [],
+      "commonPitfalls": []
+    },
+    "searchableContent": "pmo sop – pre-initiation phase define and assess the strategic need, business case, and alignment of the project with organizational goals before formal initiation. define and assess the strategic need, business case, and alignment of the project with organizational goals before formal initiation. define and assess the strategic need, business case, and alignment of the project with organizational goals before formal initiation. capture high-level idea or request. conduct initial stakeholder engagement. assess strategic alignment and value. draft preliminary business case. estimate rough order of magnitude (rom) for cost and timeline. identify potential risks and constraints. determine initial resource availability. project request form / idea brief preliminary business case. changed for agentsop high-level risk/benefit analysis go/no-go recommendation for initiation project intake form business case template strategic alignment checklist",
+    "keywords": [
+      "project management",
+      "pmo",
+      "methodology",
+      "process",
+      "framework",
+      "governance",
+      "lifecycle",
+      "planning",
+      "execution",
+      "monitoring",
+      "pre-initiation",
+      "preinitiation",
+      "phase",
+      "objective",
+      "activities",
+      "deliverables",
+      "roles",
+      "responsibilities",
+      "tools",
+      "templates"
+    ],
+    "relatedSopIds": [],
+    "version": 2,
+    "isActive": true,
+    "lastSyncedAt": "2025-07-24T11:06:18.298Z",
+    "createdAt": "2025-07-21T17:09:19.668Z",
+    "updatedAt": "2025-07-24T11:06:18.299Z",
+    "__v": 1
+  },
+  {
+    "_id": "687e743f63cecec06f8f221a",
+    "sopId": "SOP-002",
+    "humanSopId": "687e743f63cecec06f8f2218",
+    "title": "Initiation Phase",
+    "phase": 2,
+    "summary": "Phase 2 covers formally initiate the project with defined scope, stakeholders, and initial planning.. Includes 6 key activities and produces 4 deliverables. Key focus areas: Assign Project Manager, Conduct stakeholder analysis, Define high-level scope and objectives.",
+    "description": "Formally initiate the project with defined scope, stakeholders, and initial planning.",
+    "sections": {
+      "objectives": [
+        "Formally initiate the project with defined scope, stakeholders, and initial planning."
+      ],
+      "keyActivities": [
+        "Assign Project Manager",
+        "Conduct stakeholder analysis",
+        "Define high-level scope and objectives",
+        "Confirm funding and resourcing commitment",
+        "Establish project governance structure",
+        "Hold project kick-off meeting"
+      ],
+      "deliverables": [
+        "Project Charter",
+        "Stakeholder Map",
+        "Governance Plan",
+        "Initial RAID Log (Risks, Assumptions, Issues, Dependencies)"
+      ],
+      "rolesResponsibilities": [
+        {
+          "role": "Project Manager",
+          "responsibilities": [
+            "Develop Charter, lead kick-off"
+          ]
+        },
+        {
+          "role": "Business Owner",
+          "responsibilities": [
+            "Confirm scope and outcomes"
+          ]
+        },
+        {
+          "role": "PMO",
+          "responsibilities": [
+            "Support governance setup"
+          ]
+        },
+        {
+          "role": "Steering Committee",
+          "responsibilities": [
+            "Provide strategic oversight"
+          ]
+        }
+      ],
+      "toolsTemplates": [
+        "Project Charter Template",
+        "Stakeholder Register",
+        "RAID Log Template"
+      ],
+      "bestPractices": [],
+      "commonPitfalls": []
+    },
+    "searchableContent": "initiation phase phase 2 covers formally initiate the project with defined scope, stakeholders, and initial planning.. includes 6 key activities and produces 4 deliverables. key focus areas: assign project manager, conduct stakeholder analysis, define high-level scope and objectives. formally initiate the project with defined scope, stakeholders, and initial planning. formally initiate the project with defined scope, stakeholders, and initial planning. assign project manager conduct stakeholder analysis define high-level scope and objectives confirm funding and resourcing commitment establish project governance structure hold project kick-off meeting project charter stakeholder map governance plan initial raid log (risks, assumptions, issues, dependencies) project charter template stakeholder register raid log template project manager develop charter, lead kick-off business owner confirm scope and outcomes pmo support governance setup steering committee provide strategic oversight",
+    "keywords": [
+      "initiation",
+      "formally",
+      "initiate",
+      "defined",
+      "scope",
+      "stakeholders",
+      "initial",
+      "planning",
+      "assign",
+      "manager"
+    ],
+    "relatedSopIds": [],
+    "version": 1,
+    "isActive": true,
+    "lastSyncedAt": "2025-07-21T17:09:19.758Z",
+    "createdAt": "2025-07-21T17:09:19.759Z",
+    "updatedAt": "2025-07-21T17:09:19.759Z",
+    "__v": 0
+  },
+  {
+    "_id": "687e743f63cecec06f8f2220",
+    "sopId": "SOP-003",
+    "humanSopId": "687e743f63cecec06f8f221d",
+    "title": "Design and Plan",
+    "phase": 3,
+    "summary": "Phase 3 covers define detailed scope, schedule, resources, and risks to guide project execution.. Includes 6 key activities and produces 5 deliverables. Key focus areas: Develop detailed project plan, Identify and assign resources, Build budget and baseline schedule.",
+    "description": "Define detailed scope, schedule, resources, and risks to guide project execution.",
+    "sections": {
+      "objectives": [
+        "Define detailed scope, schedule, resources, and risks to guide project execution."
+      ],
+      "keyActivities": [
+        "Develop detailed project plan",
+        "Identify and assign resources",
+        "Build budget and baseline schedule",
+        "Define deliverables and quality metrics",
+        "Finalize risk mitigation strategies",
+        "Review and sign off plan"
+      ],
+      "deliverables": [
+        "Work Breakdown Structure (WBS)",
+        "Project Schedule (Gantt)",
+        "Resource Plan",
+        "Communication Plan",
+        "Risk Management Plan"
+      ],
+      "rolesResponsibilities": [
+        {
+          "role": "Project Manager",
+          "responsibilities": [
+            "Create and baseline project plan"
+          ]
+        },
+        {
+          "role": "Team Leads",
+          "responsibilities": [
+            "Define tasks and resourcing needs"
+          ]
+        },
+        {
+          "role": "PMO",
+          "responsibilities": [
+            "Validate plan consistency"
+          ]
+        },
+        {
+          "role": "Finance",
+          "responsibilities": [
+            "Confirm budget accuracy"
+          ]
+        }
+      ],
+      "toolsTemplates": [
+        "MS Project / Smartsheet / Planner",
+        "Communication Plan Template",
+        "Risk Register"
+      ],
+      "bestPractices": [],
+      "commonPitfalls": []
+    },
+    "searchableContent": "design and plan phase 3 covers define detailed scope, schedule, resources, and risks to guide project execution.. includes 6 key activities and produces 5 deliverables. key focus areas: develop detailed project plan, identify and assign resources, build budget and baseline schedule. define detailed scope, schedule, resources, and risks to guide project execution. define detailed scope, schedule, resources, and risks to guide project execution. develop detailed project plan identify and assign resources build budget and baseline schedule define deliverables and quality metrics finalize risk mitigation strategies review and sign off plan work breakdown structure (wbs) project schedule (gantt) resource plan communication plan risk management plan ms project / smartsheet / planner communication plan template risk register project manager create and baseline project plan team leads define tasks and resourcing needs pmo validate plan consistency finance confirm budget accuracy",
+    "keywords": [
+      "design",
+      "plan",
+      "define",
+      "detailed",
+      "scope",
+      "schedule",
+      "resources",
+      "risks",
+      "guide",
+      "execution"
+    ],
+    "relatedSopIds": [],
+    "version": 1,
+    "isActive": true,
+    "lastSyncedAt": "2025-07-21T17:09:19.847Z",
+    "createdAt": "2025-07-21T17:09:19.848Z",
+    "updatedAt": "2025-07-21T17:09:19.848Z",
+    "__v": 0
+  },
+  {
+    "_id": "687e743f63cecec06f8f2224",
+    "sopId": "SOP-004",
+    "humanSopId": "687e743f63cecec06f8f2222",
+    "title": "Implement and Control",
+    "phase": 4,
+    "summary": "Phase 4 covers execute project work, track progress, and manage changes and risks.. Includes 6 key activities and produces 4 deliverables. Key focus areas: Lead project execution against baseline plan, Monitor schedule, budget, and deliverables, Manage scope and change control.",
+    "description": "Execute project work, track progress, and manage changes and risks.",
+    "sections": {
+      "objectives": [
+        "Execute project work, track progress, and manage changes and risks."
+      ],
+      "keyActivities": [
+        "Lead project execution against baseline plan",
+        "Monitor schedule, budget, and deliverables",
+        "Manage scope and change control",
+        "Update RAID log and status reports",
+        "Hold regular team and steering meetings",
+        "Address issues and escalate when needed"
+      ],
+      "deliverables": [
+        "Updated Project Plan",
+        "Weekly/Biweekly Status Reports",
+        "Change Requests",
+        "Updated RAID Log"
+      ],
+      "rolesResponsibilities": [
+        {
+          "role": "Project Manager",
+          "responsibilities": [
+            "Monitor execution, manage issues"
+          ]
+        },
+        {
+          "role": "Team Members",
+          "responsibilities": [
+            "Complete assigned tasks"
+          ]
+        },
+        {
+          "role": "PMO",
+          "responsibilities": [
+            "Ensure adherence to methodology"
+          ]
+        },
+        {
+          "role": "Sponsors",
+          "responsibilities": [
+            "Review progress and provide direction"
+          ]
+        }
+      ],
+      "toolsTemplates": [
+        "Status Report Template",
+        "Change Request Form",
+        "Updated Gantt / Milestone Tracker"
+      ],
+      "bestPractices": [],
+      "commonPitfalls": []
+    },
+    "searchableContent": "implement and control phase 4 covers execute project work, track progress, and manage changes and risks.. includes 6 key activities and produces 4 deliverables. key focus areas: lead project execution against baseline plan, monitor schedule, budget, and deliverables, manage scope and change control. execute project work, track progress, and manage changes and risks. execute project work, track progress, and manage changes and risks. lead project execution against baseline plan monitor schedule, budget, and deliverables manage scope and change control update raid log and status reports hold regular team and steering meetings address issues and escalate when needed updated project plan weekly/biweekly status reports change requests updated raid log status report template change request form updated gantt / milestone tracker project manager monitor execution, manage issues team members complete assigned tasks pmo ensure adherence to methodology sponsors review progress and provide direction",
+    "keywords": [
+      "implement",
+      "control",
+      "execute",
+      "work",
+      "track",
+      "progress",
+      "manage",
+      "changes",
+      "risks",
+      "lead"
+    ],
+    "relatedSopIds": [],
+    "version": 1,
+    "isActive": true,
+    "lastSyncedAt": "2025-07-21T17:09:19.935Z",
+    "createdAt": "2025-07-21T17:09:19.935Z",
+    "updatedAt": "2025-07-21T17:09:19.935Z",
+    "__v": 0
+  },
+  {
+    "_id": "687e744063cecec06f8f2228",
+    "sopId": "SOP-005",
+    "humanSopId": "687e743f63cecec06f8f2226",
+    "title": "Close and Realize Benefits",
+    "phase": 5,
+    "summary": "Phase 5 covers formally close the project, assess performance, and transition deliverables.. Includes 6 key activities and produces 4 deliverables. Key focus areas: Finalize all deliverables, Obtain stakeholder sign-off, Release project resources.",
+    "description": "Formally close the project, assess performance, and transition deliverables.",
+    "sections": {
+      "objectives": [
+        "Formally close the project, assess performance, and transition deliverables."
+      ],
+      "keyActivities": [
+        "Finalize all deliverables",
+        "Obtain stakeholder sign-off",
+        "Release project resources",
+        "Conduct lessons learned session",
+        "Transition to operations/support",
+        "Measure benefits and KPIs"
+      ],
+      "deliverables": [
+        "Project Closure Report",
+        "Lessons Learned Summary",
+        "Benefits Realization Plan",
+        "Post-Implementation Review"
+      ],
+      "rolesResponsibilities": [
+        {
+          "role": "Project Manager",
+          "responsibilities": [
+            "Facilitate closure activities"
+          ]
+        },
+        {
+          "role": "Business Owner",
+          "responsibilities": [
+            "Accept final deliverables"
+          ]
+        },
+        {
+          "role": "PMO",
+          "responsibilities": [
+            "Archive documentation, track benefits"
+          ]
+        },
+        {
+          "role": "Ops/Support",
+          "responsibilities": [
+            "Take ownership of transitioned deliverables"
+          ]
+        }
+      ],
+      "toolsTemplates": [
+        "Project Closure Template",
+        "Lessons Learned Log",
+        "Benefits Realization Tracker"
+      ],
+      "bestPractices": [],
+      "commonPitfalls": []
+    },
+    "searchableContent": "close and realize benefits phase 5 covers formally close the project, assess performance, and transition deliverables.. includes 6 key activities and produces 4 deliverables. key focus areas: finalize all deliverables, obtain stakeholder sign-off, release project resources. formally close the project, assess performance, and transition deliverables. formally close the project, assess performance, and transition deliverables. finalize all deliverables obtain stakeholder sign-off release project resources conduct lessons learned session transition to operations/support measure benefits and kpis project closure report lessons learned summary benefits realization plan post-implementation review project closure template lessons learned log benefits realization tracker project manager facilitate closure activities business owner accept final deliverables pmo archive documentation, track benefits ops/support take ownership of transitioned deliverables",
+    "keywords": [
+      "close",
+      "realize",
+      "benefits",
+      "formally",
+      "assess",
+      "performance",
+      "transition",
+      "deliverables",
+      "finalize",
+      "obtain"
+    ],
+    "relatedSopIds": [],
+    "version": 1,
+    "isActive": true,
+    "lastSyncedAt": "2025-07-21T17:09:20.019Z",
+    "createdAt": "2025-07-21T17:09:20.020Z",
+    "updatedAt": "2025-07-21T17:09:20.020Z",
+    "__v": 0
+  }
+]

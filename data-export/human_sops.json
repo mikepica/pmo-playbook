@@ -1,0 +1,72 @@
+[
+  {
+    "_id": "687e743f63cecec06f8f2212",
+    "sopId": "SOP-001",
+    "title": "Pre-Initiation Phase",
+    "phase": 1,
+    "markdownContent": "# PMO SOP – Pre-Initiation Phase\n\n## Objective\nDefine and assess the strategic need, business case, and alignment of the project with organizational goals before formal initiation.\n\n## Key Activities\n- Capture high-level idea or request.\n- Conduct initial stakeholder engagement.\n- Assess strategic alignment and value.\n- Draft preliminary business case.\n- Estimate rough order of magnitude (ROM) for cost and timeline.\n- Identify potential risks and constraints.\n- Determine initial resource availability.\n\n## Deliverables\n- Project Request Form / Idea Brief\n- Preliminary Business Case. changeD for AGENTSOP\n- High-Level Risk/Benefit Analysis\n- Go/No-Go Recommendation for Initiation\n\n## Roles and Responsibilities\n\n| Role | Responsibility |\n|------|----------------|\n| Business Sponsor | Submit idea and define value |\n| PMO | Facilitate intake and strategic assessment |\n| Finance | Validate early cost assumptions |\n| Portfolio Committee | Prioritize and approve for initiation |\n\n## Tools & Templates\n- Project Intake Form\n- Business Case Template\n- Strategic Alignment Checklist",
+    "version": 3,
+    "isActive": true,
+    "createdBy": "migration-script",
+    "lastModifiedBy": "admin",
+    "createdAt": "2025-07-21T17:09:19.616Z",
+    "updatedAt": "2025-07-24T11:06:18.258Z",
+    "__v": 0
+  },
+  {
+    "_id": "687e743f63cecec06f8f2218",
+    "sopId": "SOP-002",
+    "title": "Initiation Phase",
+    "phase": 2,
+    "markdownContent": "# PMO SOP – Initiation Phase\n\n## Objective\nFormally initiate the project with defined scope, stakeholders, and initial planning.\n\n## Key Activities\n- Assign Project Manager\n- Conduct stakeholder analysis\n- Define high-level scope and objectives\n- Confirm funding and resourcing commitment\n- Establish project governance structure\n- Hold project kick-off meeting\n\n## Deliverables\n- Project Charter\n- Stakeholder Map\n- Governance Plan\n- Initial RAID Log (Risks, Assumptions, Issues, Dependencies)\n\n## Roles and Responsibilities\n| Role | Responsibility |\n|------|----------------|\n| Project Manager | Develop Charter, lead kick-off |\n| Business Owner | Confirm scope and outcomes |\n| PMO | Support governance setup |\n| Steering Committee | Provide strategic oversight |\n\n## Tools & Templates\n- Project Charter Template\n- Stakeholder Register\n- RAID Log Template",
+    "version": 1,
+    "isActive": true,
+    "createdBy": "migration-script",
+    "lastModifiedBy": "system",
+    "createdAt": "2025-07-21T17:09:19.719Z",
+    "updatedAt": "2025-07-21T17:09:19.719Z",
+    "__v": 0
+  },
+  {
+    "_id": "687e743f63cecec06f8f221d",
+    "sopId": "SOP-003",
+    "title": "Design and Plan",
+    "phase": 3,
+    "markdownContent": "# PMO SOP – Design and Plan\n\n## Objective\nDefine detailed scope, schedule, resources, and risks to guide project execution.\n\n## Key Activities\n- Develop detailed project plan\n- Identify and assign resources\n- Build budget and baseline schedule\n- Define deliverables and quality metrics\n- Finalize risk mitigation strategies\n- Review and sign off plan\n\n## Deliverables\n- Work Breakdown Structure (WBS)\n- Project Schedule (Gantt)\n- Resource Plan\n- Communication Plan\n- Risk Management Plan\n\n## Roles and Responsibilities\n| Role | Responsibility |\n|------|----------------|\n| Project Manager | Create and baseline project plan |\n| Team Leads | Define tasks and resourcing needs |\n| PMO | Validate plan consistency |\n| Finance | Confirm budget accuracy |\n\n## Tools & Templates\n- MS Project / Smartsheet / Planner\n- Communication Plan Template\n- Risk Register",
+    "version": 1,
+    "isActive": true,
+    "createdBy": "migration-script",
+    "lastModifiedBy": "system",
+    "createdAt": "2025-07-21T17:09:19.806Z",
+    "updatedAt": "2025-07-21T17:09:19.806Z",
+    "__v": 0
+  },
+  {
+    "_id": "687e743f63cecec06f8f2222",
+    "sopId": "SOP-004",
+    "title": "Implement and Control",
+    "phase": 4,
+    "markdownContent": "# PMO SOP – Implement and Control\n\n## Objective\nExecute project work, track progress, and manage changes and risks.\n\n## Key Activities\n- Lead project execution against baseline plan\n- Monitor schedule, budget, and deliverables\n- Manage scope and change control\n- Update RAID log and status reports\n- Hold regular team and steering meetings\n- Address issues and escalate when needed\n\n## Deliverables\n- Updated Project Plan\n- Weekly/Biweekly Status Reports\n- Change Requests\n- Updated RAID Log\n\n## Roles and Responsibilities\n| Role | Responsibility |\n|------|----------------|\n| Project Manager | Monitor execution, manage issues |\n| Team Members | Complete assigned tasks |\n| PMO | Ensure adherence to methodology |\n| Sponsors | Review progress and provide direction |\n\n## Tools & Templates\n- Status Report Template\n- Change Request Form\n- Updated Gantt / Milestone Tracker",
+    "version": 1,
+    "isActive": true,
+    "createdBy": "migration-script",
+    "lastModifiedBy": "system",
+    "createdAt": "2025-07-21T17:09:19.898Z",
+    "updatedAt": "2025-07-21T17:09:19.898Z",
+    "__v": 0
+  },
+  {
+    "_id": "687e743f63cecec06f8f2226",
+    "sopId": "SOP-005",
+    "title": "Close and Realize Benefits",
+    "phase": 5,
+    "markdownContent": "# PMO SOP – Close and Realize Benefits\n\n## Objective\nFormally close the project, assess performance, and transition deliverables.\n\n## Key Activities\n- Finalize all deliverables\n- Obtain stakeholder sign-off\n- Release project resources\n- Conduct lessons learned session\n- Transition to operations/support\n- Measure benefits and KPIs\n\n## Deliverables\n- Project Closure Report\n- Lessons Learned Summary\n- Benefits Realization Plan\n- Post-Implementation Review\n\n## Roles and Responsibilities\n| Role | Responsibility |\n|------|----------------|\n| Project Manager | Facilitate closure activities |\n| Business Owner | Accept final deliverables |\n| PMO | Archive documentation, track benefits |\n| Ops/Support | Take ownership of transitioned deliverables |\n\n## Tools & Templates\n- Project Closure Template\n- Lessons Learned Log\n- Benefits Realization Tracker",
+    "version": 1,
+    "isActive": true,
+    "createdBy": "migration-script",
+    "lastModifiedBy": "system",
+    "createdAt": "2025-07-21T17:09:19.976Z",
+    "updatedAt": "2025-07-21T17:09:19.976Z",
+    "__v": 0
+  }
+]
