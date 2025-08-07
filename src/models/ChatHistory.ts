@@ -1,6 +1,6 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import { PostgresModel } from '@/lib/postgres-model';
 
-export interface IMessage {
+export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
@@ -8,266 +8,196 @@ export interface IMessage {
   confidence?: number;
 }
 
-interface IChatHistoryModel extends mongoose.Model<IChatHistory> {
-  getActiveSessions(limit?: number): Promise<IChatHistory[]>;
-  getSOPUsageStats(startDate?: Date, endDate?: Date): Promise<Array<{
-    _id: string;
-    totalUsage: number;
-    uniqueSessions: number;
-  }>>;
+export interface SOPUsage {
+  sopId: string;
+  usageCount: number;
+  lastUsed: Date;
 }
 
-export interface IChatHistory extends Document {
-  sessionId: string;
+export interface ChatMetadata {
+  userAgent?: string;
+  ipAddress?: string;
+  duration?: number;
+  feedbackScore?: number;
+  feedbackComment?: string;
+}
+
+export interface ChatHistoryData {
   sessionName?: string;
   summary?: string;
-  userId?: string;
-  messages: IMessage[];
-  sopUsage: {
-    sopId: string;
-    usageCount: number;
-    lastUsed: Date;
-  }[];
-  metadata: {
-    userAgent?: string;
-    ipAddress?: string;
-    duration?: number;
-    feedbackScore?: number;
-    feedbackComment?: string;
-  };
+  messages: ChatMessage[];
+  sopUsage: SOPUsage[];
+  metadata: ChatMetadata;
   tags: string[];
-  status: 'active' | 'completed' | 'abandoned';
-  startedAt: Date;
-  endedAt?: Date;
-  lastActive?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  
-  // Instance methods
-  addMessage(message: {
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    timestamp: Date;
-    selectedSopId?: string;
-    confidence?: number;
-  }): Promise<IChatHistory>;
-  endSession(status?: 'completed' | 'abandoned'): Promise<IChatHistory>;
 }
 
-const MessageSchema = new Schema<IMessage>({
-  role: {
-    type: String,
-    enum: ['user', 'assistant', 'system'],
-    required: true
-  },
-  content: {
-    type: String,
-    required: true
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now
-  },
-  selectedSopId: {
-    type: String,
-    match: /^SOP-\d{3}$/,
-    description: 'SOP ID used to generate this response'
-  },
-  confidence: {
-    type: Number,
-    min: 0,
-    max: 1,
-    description: 'AI confidence score for SOP selection'
-  }
-}, { _id: false });
+export interface ChatHistoryRecord {
+  id: number;
+  sessionId: string;
+  userId: string | null;
+  data: ChatHistoryData;
+  status: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  lastActive: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-const SopUsageSchema = new Schema({
-  sopId: {
-    type: String,
-    required: true,
-    match: /^SOP-\d{3}$/
-  },
-  usageCount: {
-    type: Number,
-    default: 1,
-    min: 1
-  },
-  lastUsed: {
-    type: Date,
-    default: Date.now
+export class ChatHistoryModel extends PostgresModel {
+  constructor() {
+    super('chat_histories');
   }
-}, { _id: false });
-
-const ChatHistorySchema = new Schema<IChatHistory>({
-  sessionId: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true,
-    description: 'Unique session identifier'
-  },
-  sessionName: {
-    type: String,
-    description: 'User-editable name for the session'
-  },
-  summary: {
-    type: String,
-    description: 'AI-generated summary of the conversation'
-  },
-  userId: {
-    type: String,
-    index: true,
-    description: 'Optional user identifier for future auth'
-  },
-  messages: {
-    type: [MessageSchema],
-    required: true,
-    validate: {
-      validator: function(messages: IMessage[]) {
-        return messages.length > 0;
-      },
-      message: 'Chat history must contain at least one message'
+  
+  async findBySessionId(sessionId: string): Promise<ChatHistoryRecord | null> {
+    const result = await this.findOne({ session_id: sessionId });
+    if (result) {
+      return this.mapToRecord(result);
     }
-  },
-  sopUsage: {
-    type: [SopUsageSchema],
-    default: []
-  },
-  metadata: {
-    userAgent: String,
-    ipAddress: String,
-    duration: {
-      type: Number,
-      description: 'Session duration in seconds'
-    },
-    feedbackScore: {
-      type: Number,
-      min: 1,
-      max: 5
-    },
-    feedbackComment: String
-  },
-  tags: [{
-    type: String,
-    trim: true,
-    lowercase: true
-  }],
-  status: {
-    type: String,
-    enum: ['active', 'completed', 'abandoned'],
-    default: 'active'
-  },
-  startedAt: {
-    type: Date,
-    default: Date.now
-  },
-  endedAt: Date,
-  lastActive: {
-    type: Date,
-    default: Date.now,
-    index: true,
-    description: 'Last time this session was viewed or had activity'
+    return null;
   }
-}, {
-  timestamps: true,
-  collection: 'chat_histories'
-});
-
-// Indexes for efficient querying
-ChatHistorySchema.index({ status: 1, startedAt: -1 });
-ChatHistorySchema.index({ 'sopUsage.sopId': 1 });
-ChatHistorySchema.index({ tags: 1 });
-ChatHistorySchema.index({ 'messages.content': 'text' });
-
-// Pre-save middleware to update SOP usage stats
-ChatHistorySchema.pre('save', function(next) {
-  if (this.isModified('messages')) {
-    // Update SOP usage based on messages
-    const sopUsageMap = new Map<string, { count: number; lastUsed: Date }>();
+  
+  async getActiveSessions(limit: number = 10): Promise<ChatHistoryRecord[]> {
+    const results = await this.findMany(
+      { status: 'active' },
+      { orderBy: 'started_at DESC', limit }
+    );
+    return results.map(row => this.mapToRecord(row));
+  }
+  
+  async createSession(sessionId: string, userId?: string): Promise<ChatHistoryRecord> {
+    const data: ChatHistoryData = {
+      messages: [],
+      sopUsage: [],
+      metadata: {},
+      tags: []
+    };
     
-    this.messages.forEach(msg => {
-      if (msg.selectedSopId) {
-        const existing = sopUsageMap.get(msg.selectedSopId);
-        if (existing) {
-          existing.count++;
-          existing.lastUsed = msg.timestamp;
-        } else {
-          sopUsageMap.set(msg.selectedSopId, {
-            count: 1,
-            lastUsed: msg.timestamp
-          });
-        }
-      }
+    const result = await this.create({
+      session_id: sessionId,
+      user_id: userId || null,
+      data: JSON.stringify(data),
+      status: 'active',
+      started_at: new Date(),
+      last_active: new Date()
     });
     
-    this.sopUsage = Array.from(sopUsageMap.entries()).map(([sopId, usage]) => ({
-      sopId,
-      usageCount: usage.count,
-      lastUsed: usage.lastUsed
+    return this.mapToRecord(result);
+  }
+  
+  async addMessage(sessionId: string, message: Omit<ChatMessage, 'timestamp'>): Promise<ChatHistoryRecord | null> {
+    const existing = await this.findOne({ session_id: sessionId });
+    if (!existing) return null;
+    
+    const chatData: ChatHistoryData = existing.data;
+    const newMessage: ChatMessage = {
+      ...message,
+      timestamp: new Date()
+    };
+    
+    chatData.messages.push(newMessage);
+    
+    // Update SOP usage if applicable
+    if (newMessage.selectedSopId) {
+      const existingUsage = chatData.sopUsage.find(u => u.sopId === newMessage.selectedSopId);
+      if (existingUsage) {
+        existingUsage.usageCount++;
+        existingUsage.lastUsed = newMessage.timestamp;
+      } else {
+        chatData.sopUsage.push({
+          sopId: newMessage.selectedSopId,
+          usageCount: 1,
+          lastUsed: newMessage.timestamp
+        });
+      }
+    }
+    
+    const results = await this.update(
+      { session_id: sessionId },
+      { 
+        data: JSON.stringify(chatData),
+        last_active: new Date()
+      }
+    );
+    
+    return results.length > 0 ? this.mapToRecord(results[0]) : null;
+  }
+  
+  async endSession(sessionId: string, status: 'completed' | 'abandoned' = 'completed'): Promise<ChatHistoryRecord | null> {
+    const results = await this.update(
+      { session_id: sessionId },
+      { 
+        status,
+        ended_at: new Date()
+      }
+    );
+    
+    return results.length > 0 ? this.mapToRecord(results[0]) : null;
+  }
+  
+  async getSOPUsageStats(startDate?: Date, endDate?: Date): Promise<Array<{
+    sopId: string;
+    totalUsage: number;
+    uniqueSessions: number;
+    lastUsed: Date;
+  }>> {
+    let query = `
+      SELECT 
+        usage_item->>'sopId' as sop_id,
+        SUM((usage_item->>'usageCount')::int) as total_usage,
+        COUNT(DISTINCT session_id) as unique_sessions,
+        MAX((usage_item->>'lastUsed')::timestamp) as last_used
+      FROM chat_histories,
+           jsonb_array_elements(data->'sopUsage') as usage_item
+    `;
+    
+    const params: any[] = [];
+    
+    if (startDate || endDate) {
+      query += ' WHERE ';
+      const conditions = [];
+      
+      if (startDate) {
+        params.push(startDate);
+        conditions.push(`started_at >= $${params.length}`);
+      }
+      
+      if (endDate) {
+        params.push(endDate);
+        conditions.push(`started_at <= $${params.length}`);
+      }
+      
+      query += conditions.join(' AND ');
+    }
+    
+    query += `
+      GROUP BY usage_item->>'sopId'
+      ORDER BY total_usage DESC
+    `;
+    
+    const result = await this.pool.query(query, params);
+    return result.rows.map(row => ({
+      sopId: row.sop_id,
+      totalUsage: parseInt(row.total_usage),
+      uniqueSessions: parseInt(row.unique_sessions),
+      lastUsed: row.last_used
     }));
   }
   
-  // Update session duration if ending
-  if (this.endedAt && this.startedAt) {
-    this.metadata.duration = Math.round((this.endedAt.getTime() - this.startedAt.getTime()) / 1000);
+  private mapToRecord(row: any): ChatHistoryRecord {
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      userId: row.user_id,
+      data: row.data,
+      status: row.status,
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
+      lastActive: row.last_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
   }
-  
-  next();
-});
+}
 
-// Static method to get active sessions
-ChatHistorySchema.statics.getActiveSessions = function(limit = 10) {
-  return this.find({ status: 'active' })
-    .sort({ startedAt: -1 })
-    .limit(limit)
-    .select('sessionId userId startedAt messages');
-};
-
-// Static method to get SOP usage statistics
-ChatHistorySchema.statics.getSOPUsageStats = async function(startDate?: Date, endDate?: Date) {
-  const match: { startedAt?: { $gte?: Date; $lte?: Date } } = {};
-  if (startDate || endDate) {
-    match.startedAt = {};
-    if (startDate) match.startedAt.$gte = startDate;
-    if (endDate) match.startedAt.$lte = endDate;
-  }
-  
-  const pipeline = [
-    { $match: match },
-    { $unwind: '$sopUsage' },
-    {
-      $group: {
-        _id: '$sopUsage.sopId',
-        totalUsage: { $sum: '$sopUsage.usageCount' },
-        uniqueSessions: { $sum: 1 },
-        lastUsed: { $max: '$sopUsage.lastUsed' }
-      }
-    },
-    { $sort: { totalUsage: -1 } }
-  ];
-  
-  return this.aggregate(pipeline);
-};
-
-// Instance method to add a message
-ChatHistorySchema.methods.addMessage = function(message: Partial<IMessage>) {
-  this.messages.push({
-    role: message.role!,
-    content: message.content!,
-    timestamp: message.timestamp || new Date(),
-    selectedSopId: message.selectedSopId,
-    confidence: message.confidence
-  });
-  return this.save();
-};
-
-// Instance method to end session
-ChatHistorySchema.methods.endSession = function(status: 'completed' | 'abandoned' = 'completed') {
-  this.status = status;
-  this.endedAt = new Date();
-  return this.save();
-};
-
-const ChatHistory = (mongoose.models.ChatHistory || mongoose.model<IChatHistory, IChatHistoryModel>('ChatHistory', ChatHistorySchema)) as IChatHistoryModel;
-
-export default ChatHistory;
+export const ChatHistory = new ChatHistoryModel();

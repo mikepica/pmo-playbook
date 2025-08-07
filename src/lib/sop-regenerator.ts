@@ -1,7 +1,6 @@
-import { connectToDatabase } from '@/lib/mongodb';
-import HumanSOP from '@/models/HumanSOP';
-import AgentSOP from '@/models/AgentSOP';
-import SOPVersionHistory from '@/models/SOPVersionHistory';
+// MongoDB connection no longer needed
+import { HumanSOP } from '@/models/HumanSOP';
+import { AgentSOP } from '@/models/AgentSOP';
 import { parseSOPMarkdown, validateSOPStructure } from './sop-parser';
 
 interface RegenerationResult {
@@ -140,7 +139,7 @@ export async function regenerateAllAgentSOPs(): Promise<{
     await connectToDatabase();
     
     // Get all active HumanSOPs
-    const humanSOPs = await HumanSOP.find({ isActive: true });
+    const humanSOPs = await HumanSOP.getAllActiveSOPs();
     
     const results: RegenerationResult[] = [];
     let successful = 0;

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import ChatHistory from '@/models/ChatHistory';
+import { ChatHistory } from '@/models/ChatHistory';
 
 // GET conversation thread for a session
 export async function GET(
@@ -11,10 +10,9 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const highlightMessageId = searchParams.get('highlightMessageId');
     
-    await connectToDatabase();
     const { sessionId } = await params;
 
-    const session = await ChatHistory.findOne({ sessionId });
+    const session = await ChatHistory.findBySessionId(sessionId);
 
     if (!session) {
       return NextResponse.json(

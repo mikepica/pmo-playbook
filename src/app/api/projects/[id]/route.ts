@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import Project from '@/models/Project';
+import { Project } from '@/models/Project';
 
 // GET specific project
 export async function GET(
@@ -8,32 +7,32 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await connectToDatabase();
+    // Database connection handled by model
     
     const { id: projectId } = await params;
-    const project = await Project.findOne({ projectId, isActive: true });
+    const project = await Project.findByProjectId(projectId);
     
-    if (!project) {
+    if (!project || !project.isActive) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
     
     return NextResponse.json({ 
       project: {
-        _id: project._id,
+        _id: project.id.toString(),
         projectId: project.projectId,
-        projectName: project.projectName,
-        sponsor: project.sponsor,
-        projectTeam: project.projectTeam,
-        keyStakeholders: project.keyStakeholders,
-        projectObjectives: project.projectObjectives,
-        businessCaseSummary: project.businessCaseSummary,
-        resourceRequirements: project.resourceRequirements,
-        scopeDeliverables: project.scopeDeliverables,
-        keyDatesMilestones: project.keyDatesMilestones,
-        threats: project.threats,
-        opportunities: project.opportunities,
-        keyAssumptions: project.keyAssumptions,
-        successCriteria: project.successCriteria,
+        projectName: project.data.projectName,
+        sponsor: project.data.sponsor,
+        projectTeam: project.data.projectTeam,
+        keyStakeholders: project.data.keyStakeholders,
+        projectObjectives: project.data.projectObjectives,
+        businessCaseSummary: project.data.businessCaseSummary,
+        resourceRequirements: project.data.resourceRequirements,
+        scopeDeliverables: project.data.scopeDeliverables,
+        keyDatesMilestones: project.data.keyDatesMilestones,
+        threats: project.data.threats,
+        opportunities: project.data.opportunities,
+        keyAssumptions: project.data.keyAssumptions,
+        successCriteria: project.data.successCriteria,
         isActive: project.isActive,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt
@@ -51,7 +50,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await connectToDatabase();
+    // Database connection handled by model
     
     const { id: projectId } = await params;
     const updates = await request.json();
@@ -61,25 +60,31 @@ export async function PUT(
     delete updates.projectId;
     delete updates.createdAt;
     
-    // Update lastModifiedBy timestamp
-    updates.lastModifiedBy = 'admin';
-    
-    const project = await Project.findOneAndUpdate(
-      { projectId },
-      { $set: updates },
-      { new: true, runValidators: true }
-    );
-    
-    if (!project) {
+    // Find existing project
+    const existingProject = await Project.findByProjectId(projectId);
+    if (!existingProject || !existingProject.isActive) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+    
+    // Merge updates with existing data
+    const updatedData = {
+      ...existingProject.data,
+      ...updates,
+      lastModifiedBy: 'admin'
+    };
+    
+    // Update the project
+    await Project.update(existingProject.id, updatedData, existingProject.phase);
+    
+    // Get the updated project
+    const updatedProject = await Project.findByProjectId(projectId);
     
     return NextResponse.json({ 
       message: 'Project updated successfully',
       project: {
-        _id: project._id,
-        projectId: project.projectId,
-        projectName: project.projectName
+        _id: updatedProject?.id.toString(),
+        projectId: updatedProject?.projectId,
+        projectName: updatedProject?.data.projectName
       }
     });
   } catch (error) {
@@ -97,28 +102,27 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await connectToDatabase();
+    // Database connection handled by model
     
     const { id: projectId } = await params;
     
-    const project = await Project.findOneAndUpdate(
-      { projectId },
-      { 
-        $set: { 
-          isActive: false,
-          lastModifiedBy: 'admin'
-        } 
-      },
-      { new: true }
-    );
-    
-    if (!project) {
+    // Find existing project
+    const existingProject = await Project.findByProjectId(projectId);
+    if (!existingProject || !existingProject.isActive) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
     
+    // Soft delete by setting isActive to false
+    const updatedData = {
+      ...existingProject.data,
+      lastModifiedBy: 'admin'
+    };
+    
+    await Project.update(existingProject.id, updatedData, existingProject.phase, false);
+    
     return NextResponse.json({ 
       message: 'Project deleted successfully',
-      projectId: project.projectId
+      projectId
     });
   } catch (error) {
     console.error('Failed to delete project:', error);

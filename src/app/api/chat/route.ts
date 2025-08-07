@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
 import { selectBestSOP, generateAnswer } from '@/lib/ai-sop-selection';
-import ChatHistory from '@/models/ChatHistory';
+import { ChatHistory } from '@/models/ChatHistory';
 
 export async function POST(request: Request) {
   try {
@@ -15,8 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
-    // Connect to database
-    await connectToDatabase();
+    // Database connection handled by model
 
     // Generate or use provided session ID
     const currentSessionId = sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -29,10 +27,10 @@ export async function POST(request: Request) {
     // Get conversation context from existing chat history
     let conversationContext: Array<{role: 'user' | 'assistant', content: string}> = [];
     try {
-      const existingChat = await ChatHistory.findOne({ sessionId: currentSessionId });
-      if (existingChat && existingChat.messages.length > 0) {
+      const existingChat = await ChatHistory.findBySessionId(currentSessionId);
+      if (existingChat && existingChat.data.messages.length > 0) {
         // Get last few messages for context (excluding current message)
-        conversationContext = existingChat.messages
+        conversationContext = existingChat.data.messages
           .filter(msg => msg.role !== 'system')
           .slice(-4)
           .map(msg => ({
@@ -52,48 +50,39 @@ export async function POST(request: Request) {
 
     // Save or update chat history
     try {
-      const chatHistory = await ChatHistory.findOne({ sessionId: currentSessionId });
+      const existingChat = await ChatHistory.findBySessionId(currentSessionId);
       
-      if (chatHistory) {
-        // Add new messages to existing session
-        await chatHistory.addMessage({
+      if (existingChat) {
+        // Add user message
+        await ChatHistory.addMessage(currentSessionId, {
           role: 'user',
-          content: message,
-          timestamp: new Date()
+          content: message
         });
         
-        await chatHistory.addMessage({
+        // Add assistant message
+        await ChatHistory.addMessage(currentSessionId, {
           role: 'assistant',
           content: answerResult.answer,
-          timestamp: new Date(),
           selectedSopId: sopSelection.selectedSopId,
           confidence: sopSelection.confidence
         });
       } else {
         // Create new chat session
-        const chatEntry = {
-          sessionId: currentSessionId,
-          messages: [
-            {
-              role: 'user' as const,
-              content: message,
-              timestamp: new Date()
-            },
-            {
-              role: 'assistant' as const,
-              content: answerResult.answer,
-              timestamp: new Date(),
-              selectedSopId: sopSelection.selectedSopId,
-              confidence: sopSelection.confidence
-            }
-          ],
-          metadata: {
-            userAgent: request.headers.get('user-agent') || undefined
-          },
-          startedAt: new Date()
-        };
+        const newChat = await ChatHistory.createSession(currentSessionId);
         
-        await ChatHistory.create(chatEntry);
+        // Add user message
+        await ChatHistory.addMessage(currentSessionId, {
+          role: 'user',
+          content: message
+        });
+        
+        // Add assistant message
+        await ChatHistory.addMessage(currentSessionId, {
+          role: 'assistant',
+          content: answerResult.answer,
+          selectedSopId: sopSelection.selectedSopId,
+          confidence: sopSelection.confidence
+        });
       }
     } catch (historyError) {
       console.warn('Failed to save chat history:', historyError);

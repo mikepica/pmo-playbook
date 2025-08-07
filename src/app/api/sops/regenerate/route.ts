@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
 import { regenerateAgentSOP, regenerateAllAgentSOPs } from '@/lib/sop-regenerator';
 
 export async function POST(request: Request) {
@@ -7,7 +6,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { sopId, regenerateAll } = body;
     
-    await connectToDatabase();
+    // Database connection handled by regeneration functions
     
     if (regenerateAll) {
       // Regenerate all AgentSOPs

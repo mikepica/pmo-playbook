@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import AgentSOP from '@/models/AgentSOP';
+import { AgentSOP } from '@/models/AgentSOP';
 
 let openai: OpenAI | null = null;
 
@@ -138,13 +138,13 @@ export async function generateAnswer(
 ): Promise<AnswerGenerationResult> {
   try {
     // Get the full SOP content
-    const fullSOP = await AgentSOP.findOne({ sopId: selectedSopId, isActive: true });
+    const fullSOP = await AgentSOP.findBySopId(selectedSopId);
     if (!fullSOP) {
       throw new Error(`SOP ${selectedSopId} not found or not active`);
     }
 
     // Generate AI context from the SOP
-    const sopContext = fullSOP.generateAIContext();
+    const sopContext = AgentSOP.generateAIContext(fullSOP);
 
     // Build conversation context if provided
     let conversationHistory = '';

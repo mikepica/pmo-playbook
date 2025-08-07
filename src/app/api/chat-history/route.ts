@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import ChatHistory from '@/models/ChatHistory';
+import { ChatHistory } from '@/models/ChatHistory';
 
 export async function GET(request: Request) {
   try {
@@ -11,10 +10,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'SessionId is required' }, { status: 400 });
     }
 
-    await connectToDatabase();
-
     // Get chat history for the session
-    const chatHistory = await ChatHistory.findOne({ sessionId }).sort({ createdAt: -1 });
+    const chatHistory = await ChatHistory.findBySessionId(sessionId);
     
     if (!chatHistory) {
       return NextResponse.json({ 

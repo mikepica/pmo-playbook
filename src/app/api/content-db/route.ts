@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import MongoHumanSOP from '@/models/HumanSOP';
-import MongoAgentSOP from '@/models/AgentSOP';
-import { HumanSOP as PostgresHumanSOP } from '@/models/postgres/HumanSOP';
-import { AgentSOP as PostgresAgentSOP } from '@/models/postgres/AgentSOP';
-import { DATABASE_CONFIG } from '@/lib/database-config';
+import { HumanSOP } from '@/models/HumanSOP';
+import { AgentSOP } from '@/models/AgentSOP';
 import { regenerateAgentSOP } from '@/lib/sop-regenerator';
 
 export async function GET(request: Request) {
@@ -18,37 +14,16 @@ export async function GET(request: Request) {
     // If requesting all SOPs
     if (all === 'true') {
       if (type === 'human') {
-        let sops;
-        
-        if (DATABASE_CONFIG.humanSops === 'postgres') {
-          // Use PostgreSQL
-          const pgSops = await PostgresHumanSOP.getAllActiveSOPs();
-          sops = pgSops.map(sop => ({
-            _id: sop.id.toString(),
-            sopId: sop.sopId,
-            title: sop.data.title,
-            phase: sop.phase,
-            version: sop.version,
-            markdownContent: sop.data.markdownContent,
-            updatedAt: sop.updatedAt
-          }));
-        } else {
-          // Use MongoDB
-          await connectToDatabase();
-          const mongoSops = await MongoHumanSOP.find({ isActive: true })
-            .select('sopId title phase version markdownContent updatedAt')
-            .sort({ phase: 1 });
-          
-          sops = mongoSops.map(sop => ({
-            _id: sop._id,
-            sopId: sop.sopId,
-            title: sop.title,
-            phase: sop.phase,
-            version: sop.version,
-            markdownContent: sop.markdownContent,
-            updatedAt: sop.updatedAt
-          }));
-        }
+        const pgSops = await HumanSOP.getAllActiveSOPs();
+        const sops = pgSops.map(sop => ({
+          _id: sop.id.toString(),
+          sopId: sop.sopId,
+          title: sop.data.title,
+          phase: sop.phase,
+          version: sop.version,
+          markdownContent: sop.data.markdownContent,
+          updatedAt: sop.updatedAt
+        }));
         
         return NextResponse.json({ sops });
       }
@@ -61,64 +36,27 @@ export async function GET(request: Request) {
     }
     
     if (type === 'human') {
-      let sop;
-      
-      if (DATABASE_CONFIG.humanSops === 'postgres') {
-        // Use PostgreSQL
-        sop = await PostgresHumanSOP.findBySopId(sopId);
-        if (sop) {
-          return NextResponse.json({ 
-            content: sop.data.markdownContent,
-            title: sop.data.title,
-            phase: sop.phase,
-            version: sop.version,
-            updatedAt: sop.updatedAt
-          });
-        }
-      } else {
-        // Use MongoDB
-        await connectToDatabase();
-        sop = await MongoHumanSOP.findOne({ sopId, isActive: true });
-        if (sop) {
-          return NextResponse.json({ 
-            content: sop.markdownContent,
-            title: sop.title,
-            phase: sop.phase,
-            version: sop.version,
-            updatedAt: sop.updatedAt
-          });
-        }
+      const sop = await HumanSOP.findBySopId(sopId);
+      if (sop) {
+        return NextResponse.json({ 
+          content: sop.data.markdownContent,
+          title: sop.data.title,
+          phase: sop.phase,
+          version: sop.version,
+          updatedAt: sop.updatedAt
+        });
       }
-      
       return NextResponse.json({ error: 'SOP not found' }, { status: 404 });
     } else if (type === 'agent') {
-      let sop;
-      
-      if (DATABASE_CONFIG.agentSops === 'postgres') {
-        // Use PostgreSQL
-        sop = await PostgresAgentSOP.findBySopId(sopId);
-        if (sop) {
-          return NextResponse.json({ 
-            content: PostgresAgentSOP.generateAIContext(sop),
-            title: sop.data.title,
-            phase: sop.phase,
-            summary: sop.data.summary
-          });
-        }
-      } else {
-        // Use MongoDB
-        await connectToDatabase();
-        sop = await MongoAgentSOP.findOne({ sopId, isActive: true });
-        if (sop) {
-          return NextResponse.json({ 
-            content: sop.generateAIContext(),
-            title: sop.title,
-            phase: sop.phase,
-            summary: sop.summary
-          });
-        }
+      const sop = await AgentSOP.findBySopId(sopId);
+      if (sop) {
+        return NextResponse.json({ 
+          content: AgentSOP.generateAIContext(sop),
+          title: sop.data.title,
+          phase: sop.phase,
+          summary: sop.data.summary
+        });
       }
-      
       return NextResponse.json({ error: 'SOP not found' }, { status: 404 });
     }
     
@@ -138,21 +76,26 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
     
-    await connectToDatabase();
-    
     // Find the SOP first to increment version
-    const existingSOP = await HumanSOP.findOne({ sopId, isActive: true });
+    const existingSOP = await HumanSOP.findBySopId(sopId);
     
     if (!existingSOP) {
       return NextResponse.json({ error: 'SOP not found' }, { status: 404 });
     }
     
     // Update the HumanSOP with version increment
-    existingSOP.markdownContent = markdownContent;
-    existingSOP.version = (existingSOP.version || 1) + 1;
-    existingSOP.lastModifiedBy = 'admin'; // TODO: Get from auth context
+    const updatedData = {
+      ...existingSOP.data,
+      markdownContent,
+      title: existingSOP.data.title,
+      lastModifiedBy: 'admin' // TODO: Get from auth context
+    };
     
-    await existingSOP.save();
+    const newVersion = (existingSOP.version || 1) + 1;
+    await HumanSOP.update(existingSOP.id, updatedData, newVersion, existingSOP.phase);
+    
+    // Get the updated SOP for response
+    const updatedSOP = await HumanSOP.findBySopId(sopId);
     
     // Regenerate AgentSOP
     const regenerationResult = await regenerateAgentSOP(sopId);
@@ -164,10 +107,10 @@ export async function PUT(request: Request) {
       return NextResponse.json({ 
         success: true,
         sop: {
-          sopId: existingSOP.sopId,
-          title: existingSOP.title,
-          version: existingSOP.version,
-          updatedAt: existingSOP.updatedAt
+          sopId: updatedSOP?.sopId,
+          title: updatedSOP?.data.title,
+          version: updatedSOP?.version,
+          updatedAt: updatedSOP?.updatedAt
         },
         warning: `SOP updated but AgentSOP regeneration failed: ${regenerationResult.message}`,
         regenerationErrors: regenerationResult.errors,
@@ -178,10 +121,10 @@ export async function PUT(request: Request) {
     return NextResponse.json({ 
       success: true,
       sop: {
-        sopId: existingSOP.sopId,
-        title: existingSOP.title,
-        version: existingSOP.version,
-        updatedAt: existingSOP.updatedAt
+        sopId: updatedSOP?.sopId,
+        title: updatedSOP?.data.title,
+        version: updatedSOP?.version,
+        updatedAt: updatedSOP?.updatedAt
       },
       agentSOPRegenerated: true,
       agentSOPVersion: regenerationResult.agentSOP?.version,

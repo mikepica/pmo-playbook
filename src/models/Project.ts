@@ -1,16 +1,6 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import { PostgresModel } from '@/lib/postgres-model';
 
-interface IProjectModel extends mongoose.Model<IProject> {
-  getNextProjectId(): Promise<string>;
-}
-
-export interface IProjectMilestone {
-  date: Date;
-  description: string;
-}
-
-export interface IProject extends Document {
-  projectId: string;
+export interface ProjectData {
   projectName: string;
   sponsor: string;
   projectTeam: string[];
@@ -19,163 +9,151 @@ export interface IProject extends Document {
   businessCaseSummary: string;
   resourceRequirements: string;
   scopeDeliverables: string[];
-  keyDatesMilestones: IProjectMilestone[];
+  keyDatesMilestones: Array<{ date: Date; description: string }>;
   threats: string[];
   opportunities: string[];
   keyAssumptions: string[];
   successCriteria: string[];
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
   createdBy?: string;
   lastModifiedBy?: string;
 }
 
-const ProjectMilestoneSchema = new Schema({
-  date: {
-    type: Date,
-    required: true
-  },
-  description: {
-    type: String,
-    required: true,
-    trim: true
-  }
-});
+export interface ProjectRecord {
+  id: number;
+  projectId: string;
+  data: ProjectData;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-const ProjectSchema = new Schema<IProject>({
-  projectId: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true,
-    match: /^PRO-\d{3}$/,
-    description: 'Unique identifier in format PRO-XXX'
-  },
-  projectName: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 200
-  },
-  sponsor: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 100
-  },
-  projectTeam: {
-    type: [String],
-    default: [],
-    description: 'Array of team member names'
-  },
-  keyStakeholders: {
-    type: [String],
-    default: [],
-    description: 'Array of stakeholder names'
-  },
-  projectObjectives: {
-    type: [String],
-    default: [],
-    description: 'Array of project objectives'
-  },
-  businessCaseSummary: {
-    type: String,
-    required: true,
-    description: 'Summary of the business case'
-  },
-  resourceRequirements: {
-    type: String,
-    required: true,
-    description: 'Free text description of resource requirements'
-  },
-  scopeDeliverables: {
-    type: [String],
-    default: [],
-    description: 'Array of project deliverables'
-  },
-  keyDatesMilestones: {
-    type: [ProjectMilestoneSchema],
-    default: [],
-    description: 'Array of key dates and milestones'
-  },
-  threats: {
-    type: [String],
-    default: [],
-    description: 'Array of project threats/risks'
-  },
-  opportunities: {
-    type: [String],
-    default: [],
-    description: 'Array of project opportunities'
-  },
-  keyAssumptions: {
-    type: [String],
-    default: [],
-    description: 'Array of key project assumptions'
-  },
-  successCriteria: {
-    type: [String],
-    default: [],
-    description: 'Array of success criteria'
-  },
-  isActive: {
-    type: Boolean,
-    default: true,
-    description: 'Whether this project is currently active'
-  },
-  createdBy: {
-    type: String,
-    default: 'system'
-  },
-  lastModifiedBy: {
-    type: String,
-    default: 'system'
-  }
-}, {
-  timestamps: true,
-  collection: 'projects'
-});
-
-// Indexes for efficient querying
-ProjectSchema.index({ projectName: 'text' });
-ProjectSchema.index({ sponsor: 1 });
-ProjectSchema.index({ isActive: 1 });
-
-// Static method to get the next project ID
-ProjectSchema.statics.getNextProjectId = async function() {
-  const lastProject = await this.findOne()
-    .sort({ projectId: -1 })
-    .select('projectId');
-  
-  if (!lastProject) {
-    return 'PRO-001';
+export class ProjectModel extends PostgresModel {
+  constructor() {
+    super('projects');
   }
   
-  const lastNumber = parseInt(lastProject.projectId.split('-')[1]);
-  const nextNumber = lastNumber + 1;
-  return `PRO-${nextNumber.toString().padStart(3, '0')}`;
-};
+  async findByProjectId(projectId: string): Promise<ProjectRecord | null> {
+    const result = await this.findOne({ project_id: projectId });
+    if (result) {
+      return {
+        id: result.id,
+        projectId: result.project_id,
+        data: result.data,
+        isActive: result.is_active,
+        createdAt: result.created_at,
+        updatedAt: result.updated_at
+      };
+    }
+    return null;
+  }
+  
+  async getActiveProjects(): Promise<ProjectRecord[]> {
+    const results = await this.findMany(
+      { is_active: true },
+      { orderBy: 'project_id ASC' }
+    );
+    return results.map(row => ({
+      id: row.id,
+      projectId: row.project_id,
+      data: row.data,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  }
+  
+  async getAllProjects(): Promise<ProjectRecord[]> {
+    const results = await this.findMany({}, { orderBy: 'project_id ASC' });
+    return results.map(row => ({
+      id: row.id,
+      projectId: row.project_id,
+      data: row.data,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  }
+  
+  async createProject(projectId: string, data: ProjectData): Promise<ProjectRecord> {
+    const result = await this.create({
+      project_id: projectId,
+      data: JSON.stringify(data),
+      is_active: true
+    });
+    return {
+      id: result.id,
+      projectId: result.project_id,
+      data: result.data,
+      isActive: result.is_active,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at
+    };
+  }
+  
+  async updateProject(projectId: string, updates: Partial<ProjectData>): Promise<ProjectRecord | null> {
+    const existing = await this.findOne({ project_id: projectId });
+    if (!existing) return null;
+    
+    const mergedData = { ...existing.data, ...updates };
+    const results = await this.update(
+      { project_id: projectId },
+      { data: JSON.stringify(mergedData) }
+    );
+    
+    if (results.length > 0) {
+      const result = results[0];
+      return {
+        id: result.id,
+        projectId: result.project_id,
+        data: result.data,
+        isActive: result.is_active,
+        createdAt: result.created_at,
+        updatedAt: result.updated_at
+      };
+    }
+    return null;
+  }
+  
+  async deleteProject(projectId: string): Promise<boolean> {
+    const results = await this.update(
+      { project_id: projectId },
+      { is_active: false }
+    );
+    return results.length > 0;
+  }
+  
+  async getNextProjectId(): Promise<string> {
+    const result = await this.pool.query(`
+      SELECT project_id FROM projects 
+      ORDER BY project_id DESC 
+      LIMIT 1
+    `);
+    
+    if (result.rows.length === 0) {
+      return 'PRO-001';
+    }
+    
+    const lastId = result.rows[0].project_id;
+    const lastNumber = parseInt(lastId.split('-')[1]);
+    const nextNumber = lastNumber + 1;
+    return `PRO-${nextNumber.toString().padStart(3, '0')}`;
+  }
+  
+  // Method to get summary compatible with MongoDB model
+  getSummary(project: ProjectRecord) {
+    const nextMilestone = project.data.keyDatesMilestones
+      ?.filter(m => new Date(m.date) > new Date())
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] || null;
+    
+    return {
+      projectId: project.projectId,
+      projectName: project.data.projectName,
+      sponsor: project.data.sponsor,
+      teamSize: project.data.projectTeam?.length || 0,
+      deliverableCount: project.data.scopeDeliverables?.length || 0,
+      nextMilestone
+    };
+  }
+}
 
-// Static method to get active projects
-ProjectSchema.statics.getActiveProjects = function() {
-  return this.find({ isActive: true }).sort({ projectId: 1 });
-};
-
-// Instance method to create a summary
-ProjectSchema.methods.getSummary = function() {
-  return {
-    projectId: this.projectId,
-    projectName: this.projectName,
-    sponsor: this.sponsor,
-    teamSize: this.projectTeam.length,
-    deliverableCount: this.scopeDeliverables.length,
-    nextMilestone: this.keyDatesMilestones
-      .filter(m => m.date > new Date())
-      .sort((a, b) => a.date.getTime() - b.date.getTime())[0] || null
-  };
-};
-
-const Project = (mongoose.models.Project || mongoose.model<IProject, IProjectModel>('Project', ProjectSchema)) as IProjectModel;
-
-export default Project;
+export const Project = new ProjectModel();
