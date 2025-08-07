@@ -66,7 +66,8 @@ export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPT
                 key={sop.id}
                 onClick={() => {
                   onSOPSelect(sop.id);
-                  router.push(`/sop/${sop.id}`);
+                  // Update URL without full page navigation
+                  window.history.pushState({}, '', `/sop/${sop.id}`);
                 }}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   selectedSOP === sop.id

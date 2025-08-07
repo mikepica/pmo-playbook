@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, notFound } from 'next/navigation';
 import SOPTabs from '@/components/SOPTabs';
 import MarkdownViewerDB from '@/components/MarkdownViewerDB';
-import ChatInterfaceAI from '@/components/ChatInterfaceAI';
+import ChatInterfacePersistent from '@/components/ChatInterfacePersistent';
 
 interface SOP {
   id: string;
@@ -109,7 +109,7 @@ export default function SOPPage() {
         
         {/* AI Chat Interface - Persistent across all SOP pages */}
         <div className="w-[1000px] flex flex-col border-l border-gray-300 overflow-hidden h-full">
-          <ChatInterfaceAI />
+          <ChatInterfacePersistent />
         </div>
       </div>
     </div>

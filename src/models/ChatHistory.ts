@@ -123,6 +123,33 @@ export class ChatHistoryModel extends PostgresModel {
     return results.length > 0 ? this.mapToRecord(results[0]) : null;
   }
   
+  async updateSessionName(sessionId: string, sessionName: string): Promise<ChatHistoryRecord | null> {
+    const existing = await this.findOne({ session_id: sessionId });
+    if (!existing) return null;
+    
+    const chatData: ChatHistoryData = existing.data;
+    chatData.sessionName = sessionName;
+    
+    const results = await this.update(
+      { session_id: sessionId },
+      { 
+        data: JSON.stringify(chatData),
+        last_active: new Date()
+      }
+    );
+    
+    return results.length > 0 ? this.mapToRecord(results[0]) : null;
+  }
+
+  async updateLastActive(sessionId: string): Promise<ChatHistoryRecord | null> {
+    const results = await this.update(
+      { session_id: sessionId },
+      { last_active: new Date() }
+    );
+    
+    return results.length > 0 ? this.mapToRecord(results[0]) : null;
+  }
+
   async endSession(sessionId: string, status: 'completed' | 'abandoned' = 'completed'): Promise<ChatHistoryRecord | null> {
     const results = await this.update(
       { session_id: sessionId },

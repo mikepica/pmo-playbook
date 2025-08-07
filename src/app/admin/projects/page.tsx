@@ -170,7 +170,7 @@ export default function ProjectsAdminPage() {
               placeholder="Search projects..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
             />
           </div>
         </div>
@@ -208,14 +208,14 @@ export default function ProjectsAdminPage() {
                 <tr key={project.projectId} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-black">
                         {project.projectName}
                       </div>
-                      <div className="text-sm text-gray-500">{project.projectId}</div>
+                      <div className="text-sm text-black">{project.projectId}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{project.sponsor}</div>
+                    <div className="text-sm text-black">{project.sponsor}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center text-sm text-gray-900">
@@ -224,7 +224,7 @@ export default function ProjectsAdminPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
+                    <div className="text-sm text-black">
                       {project.scopeDeliverables.length} items
                     </div>
                   </td>
@@ -262,7 +262,7 @@ export default function ProjectsAdminPage() {
           {filteredProjects.length === 0 && (
             <div className="text-center py-12">
               <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No projects found</p>
+              <p className="text-black">No projects found</p>
             </div>
           )}
         </div>

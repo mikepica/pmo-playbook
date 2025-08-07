@@ -82,7 +82,7 @@ export default function ProjectsDropdown() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        className="flex items-center px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
         disabled={loading}
       >
         <Briefcase className="w-4 h-4 mr-2" />
@@ -107,7 +107,7 @@ export default function ProjectsDropdown() {
             </div>
             
             {projects.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+              <div className="px-3 py-4 text-sm text-black text-center">
                 No projects found
               </div>
             ) : (
@@ -122,8 +122,8 @@ export default function ProjectsDropdown() {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="font-medium text-sm">{project.projectName}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="font-medium text-sm text-black">{project.projectName}</div>
+                        <div className="text-xs text-black">
                           {project.projectId} • Sponsor: {project.sponsor}
                         </div>
                       </div>

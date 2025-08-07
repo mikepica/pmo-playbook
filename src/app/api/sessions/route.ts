@@ -83,20 +83,27 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // Database connection handled by model
+    let updatedSession;
 
-    // For now, just respond with success - full session update functionality
-    // would need to be implemented in the ChatHistory model
-    const session = await ChatHistory.findBySessionId(sessionId);
-    if (!session) {
+    if (sessionName) {
+      // Update session name
+      updatedSession = await ChatHistory.updateSessionName(sessionId, sessionName);
+    } else if (updateLastActive) {
+      // Update last active timestamp
+      updatedSession = await ChatHistory.updateLastActive(sessionId);
+    } else {
       return NextResponse.json(
-        { error: 'Session not found' },
+        { error: 'No update parameters provided' },
+        { status: 400 }
+      );
+    }
+
+    if (!updatedSession) {
+      return NextResponse.json(
+        { error: 'Session not found or update failed' },
         { status: 404 }
       );
     }
-    
-    // TODO: Implement session name updates in ChatHistory model
-    const updatedSession = session;
 
     return NextResponse.json({
       success: true,

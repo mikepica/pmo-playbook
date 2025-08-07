@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, ThumbsUp, ThumbsDown, Download } from 'lucide-react';
+import { useChatContext } from '@/contexts/ChatContext';
 
 interface Message {
   id: string;
@@ -34,25 +35,46 @@ interface Session {
   isActive: boolean;
 }
 
-export default function ChatInterfaceAI() {
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function ChatInterfacePersistent() {
+  const {
+    messages,
+    setMessages,
+    sessionId,
+    setSessionId,
+    historyLoaded,
+    setHistoryLoaded,
+    sessions,
+    setSessions,
+    preservedState
+  } = useChatContext();
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [reportingGap, setReportingGap] = useState<string | null>(null);
   const [gapDescription, setGapDescription] = useState('');
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [showSessionDropdown, setShowSessionDropdown] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'helpful' | 'not_helpful'>>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef(false);
 
-  // Initialize session and load history
+  // Initialize session and load history only once
   useEffect(() => {
-    initializeSession();
-    loadSessions();
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      
+      // Check if we have preserved state first
+      if (preservedState.current.sessionId && preservedState.current.messages.length > 0) {
+        setMessages(preservedState.current.messages);
+        setSessionId(preservedState.current.sessionId);
+        setHistoryLoaded(true);
+        loadSessions();
+      } else {
+        initializeSession();
+        loadSessions();
+      }
+    }
   }, []);
 
   // Close dropdown when clicking outside
@@ -74,25 +96,25 @@ export default function ChatInterfaceAI() {
   };
 
   const initializeSession = useCallback(async (newSession = false) => {
-    // Get or create session ID from localStorage
-    let storedSessionId = localStorage.getItem('pmo-chat-session');
-    
-    if (!storedSessionId || newSession) {
-      storedSessionId = generateSessionId();
-      localStorage.setItem('pmo-chat-session', storedSessionId);
-    }
-
-    setSessionId(storedSessionId);
-    
-    if (newSession) {
-      // Clear messages for new session
-      setMessages([]);
-      setHistoryLoaded(true);
-      return;
-    }
-    
-    // Load chat history for this session
     try {
+      // Get or create session ID from localStorage
+      let storedSessionId = localStorage.getItem('pmo-chat-session');
+      
+      if (!storedSessionId || newSession) {
+        storedSessionId = generateSessionId();
+        localStorage.setItem('pmo-chat-session', storedSessionId);
+      }
+
+      setSessionId(storedSessionId);
+      
+      if (newSession) {
+        // Clear messages for new session
+        setMessages([]);
+        setHistoryLoaded(true);
+        return;
+      }
+      
+      // Load chat history for this session
       const response = await fetch(`/api/chat-history?sessionId=${storedSessionId}`);
       const data = await response.json();
       
@@ -133,7 +155,7 @@ export default function ChatInterfaceAI() {
     }
     
     setHistoryLoaded(true);
-  }, []);
+  }, [setMessages, setSessionId, setHistoryLoaded]);
 
   const startNewConversation = () => {
     // Save current session before starting new
@@ -159,7 +181,7 @@ export default function ChatInterfaceAI() {
     } catch (error) {
       console.error('Failed to load sessions:', error);
     }
-  }, [sessionId]);
+  }, [sessionId, setSessions]);
 
   const switchToSession = async (targetSessionId: string) => {
     if (targetSessionId === sessionId) return;
