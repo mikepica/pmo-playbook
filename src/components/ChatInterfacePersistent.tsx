@@ -460,7 +460,11 @@ export default function ChatInterfacePersistent() {
         markdown += `${message.content}\n\n`;
         
         if (message.attribution) {
-          markdown += `> **Source:** ${message.attribution.selectedSOP.sopId} - ${message.attribution.selectedSOP.title} (Phase ${message.attribution.selectedSOP.phase})\n`;
+          if (message.attribution.selectedSOP.sopId === 'GENERAL_PM_KNOWLEDGE') {
+            markdown += `> **Source:** General PM Expertise\n`;
+          } else {
+            markdown += `> **Source:** ${message.attribution.selectedSOP.sopId} - ${message.attribution.selectedSOP.title} (Phase ${message.attribution.selectedSOP.phase})\n`;
+          }
           markdown += `> **Confidence:** ${Math.round(message.attribution.confidence * 100)}%\n`;
           
           const feedback = messageFeedback[message.id];
@@ -710,12 +714,20 @@ export default function ChatInterfacePersistent() {
                       <div className="space-y-2">
                         <div className="flex items-center text-xs text-gray-600">
                           <span className="font-medium">Source:</span>
-                          <span className="ml-2 bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
-                            {message.attribution.selectedSOP.sopId}: Phase {message.attribution.selectedSOP.phase}
-                          </span>
-                          <span className="ml-2 text-gray-500">
-                            {message.attribution.selectedSOP.title}
-                          </span>
+                          {message.attribution.selectedSOP.sopId === 'GENERAL_PM_KNOWLEDGE' ? (
+                            <span className="ml-2 bg-purple-50 text-purple-800 px-2 py-1 rounded text-xs">
+                              General PM Expertise
+                            </span>
+                          ) : (
+                            <>
+                              <span className="ml-2 bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
+                                {message.attribution.selectedSOP.sopId}: Phase {message.attribution.selectedSOP.phase}
+                              </span>
+                              <span className="ml-2 text-gray-500">
+                                {message.attribution.selectedSOP.title}
+                              </span>
+                            </>
+                          )}
                         </div>
                         <div className="flex items-center text-xs text-gray-500">
                           <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded">

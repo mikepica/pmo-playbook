@@ -14,7 +14,8 @@
     "test-projects-api": "tsx scripts/test-projects-api.ts",
     "test-system": "tsx scripts/test-full-system.ts",
     "optimize-db": "tsx scripts/add-performance-indexes.ts",
-    "backup": "tsx scripts/backup-postgres.ts"
+    "backup": "tsx scripts/backup-postgres.ts",
+    "ai-config": "tsx scripts/ai-config-manager.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",

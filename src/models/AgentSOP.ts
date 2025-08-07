@@ -61,6 +61,8 @@ export class AgentSOPModel extends PostgresModel {
     phase: number;
     summary: string;
     keywords: string[];
+    keyActivities: string[];
+    deliverables: string[];
   }>> {
     const query = `
       SELECT sop_id, phase, data
@@ -75,7 +77,9 @@ export class AgentSOPModel extends PostgresModel {
       title: row.data.title,
       phase: row.phase,
       summary: row.data.summary,
-      keywords: row.data.keywords || []
+      keywords: row.data.keywords || [],
+      keyActivities: row.data.sections?.keyActivities?.slice(0, 3) || [],
+      deliverables: row.data.sections?.deliverables?.slice(0, 3) || []
     }));
   }
   
@@ -164,6 +168,157 @@ export class AgentSOPModel extends PostgresModel {
       sections: sop.data.sections,
       keywords: sop.data.keywords,
       relatedSops: sop.data.relatedSopIds
+    };
+  }
+
+  /**
+   * Find multiple SOPs by their IDs
+   */
+  async findMultipleBySopIds(sopIds: string[]): Promise<AgentSOPRecord[]> {
+    if (sopIds.length === 0) return [];
+    
+    const placeholders = sopIds.map((_, i) => `$${i + 1}`).join(', ');
+    const query = `
+      SELECT * FROM agent_sops 
+      WHERE sop_id IN (${placeholders}) 
+      AND is_active = true
+      ORDER BY phase ASC, sop_id ASC
+    `;
+    
+    const result = await this.pool.query(query, sopIds);
+    return result.rows.map(row => this.mapToRecord(row));
+  }
+
+  /**
+   * Find SOPs by keyword intersection (for multi-topic queries)
+   */
+  async findByKeywordIntersection(keywords: string[], limit: number = 5): Promise<Array<{
+    sop: AgentSOPRecord;
+    matchCount: number;
+    matchedKeywords: string[];
+  }>> {
+    if (keywords.length === 0) return [];
+    
+    const keywordConditions = keywords.map((keyword, i) => 
+      `data->'keywords' @> $${i + 1}`
+    );
+    
+    const query = `
+      SELECT *, 
+             (${keywordConditions.map((_, i) => `CASE WHEN ${keywordConditions[i]} THEN 1 ELSE 0 END`).join(' + ')}) as match_count
+      FROM agent_sops 
+      WHERE is_active = true
+      AND (${keywordConditions.join(' OR ')})
+      ORDER BY match_count DESC, phase ASC
+      LIMIT $${keywords.length + 1}
+    `;
+    
+    const params = [...keywords.map(k => `"${k}"`), limit];
+    const result = await this.pool.query(query, params);
+    
+    return result.rows.map(row => ({
+      sop: this.mapToRecord(row),
+      matchCount: parseInt(row.match_count),
+      matchedKeywords: keywords.filter(keyword => 
+        row.data.keywords && row.data.keywords.includes(keyword)
+      )
+    }));
+  }
+
+  /**
+   * Find SOPs related by phase proximity (for cross-phase queries)
+   */
+  async findByPhaseRange(centerPhase: number, range: number = 1): Promise<AgentSOPRecord[]> {
+    const minPhase = Math.max(1, centerPhase - range);
+    const maxPhase = Math.min(5, centerPhase + range);
+    
+    const query = `
+      SELECT * FROM agent_sops 
+      WHERE is_active = true
+      AND phase BETWEEN $1 AND $2
+      ORDER BY ABS(phase - $3) ASC, phase ASC, sop_id ASC
+    `;
+    
+    const result = await this.pool.query(query, [minPhase, maxPhase, centerPhase]);
+    return result.rows.map(row => this.mapToRecord(row));
+  }
+
+  /**
+   * Score SOPs for relevance to a query
+   */
+  async scoreSOPsForQuery(query: string, maxSOPs: number = 3): Promise<Array<{
+    sop: AgentSOPRecord;
+    relevanceScore: number;
+    reasoning: string;
+  }>> {
+    // Get all SOPs for scoring
+    const allSOPs = await this.findMany({ is_active: true });
+    
+    // Simple scoring based on keyword matching and text similarity
+    const scoredSOPs = allSOPs.map(sopRow => {
+      const sop = this.mapToRecord(sopRow);
+      const score = this.calculateRelevanceScore(query, sop);
+      
+      return {
+        sop,
+        relevanceScore: score.score,
+        reasoning: score.reasoning
+      };
+    }).filter(result => result.relevanceScore > 0.1)
+      .sort((a, b) => b.relevanceScore - a.relevanceScore)
+      .slice(0, maxSOPs);
+    
+    return scoredSOPs;
+  }
+
+  /**
+   * Calculate relevance score for a SOP against a query
+   */
+  private calculateRelevanceScore(query: string, sop: AgentSOPRecord): { score: number; reasoning: string } {
+    const queryLower = query.toLowerCase();
+    const searchableContent = sop.searchableContent.toLowerCase();
+    const keywords = sop.data.keywords?.map(k => k.toLowerCase()) || [];
+    
+    let score = 0;
+    const reasons: string[] = [];
+    
+    // Keyword matching (high weight)
+    const keywordMatches = keywords.filter(keyword => queryLower.includes(keyword));
+    if (keywordMatches.length > 0) {
+      score += keywordMatches.length * 0.3;
+      reasons.push(`Keywords: ${keywordMatches.join(', ')}`);
+    }
+    
+    // Title matching (medium weight)
+    if (queryLower.includes(sop.data.title.toLowerCase()) || 
+        sop.data.title.toLowerCase().includes(queryLower)) {
+      score += 0.25;
+      reasons.push('Title relevance');
+    }
+    
+    // Summary matching (medium weight)
+    const summaryWords = sop.data.summary.toLowerCase().split(/\s+/);
+    const queryWords = queryLower.split(/\s+/);
+    const commonWords = summaryWords.filter(word => 
+      queryWords.some(qw => qw.includes(word) || word.includes(qw))
+    );
+    if (commonWords.length > 0) {
+      score += Math.min(0.2, commonWords.length * 0.05);
+      reasons.push('Summary relevance');
+    }
+    
+    // Content matching (lower weight but comprehensive)
+    const contentMatches = queryWords.filter(word => 
+      word.length > 3 && searchableContent.includes(word)
+    );
+    if (contentMatches.length > 0) {
+      score += Math.min(0.15, contentMatches.length * 0.03);
+      reasons.push('Content relevance');
+    }
+    
+    return {
+      score: Math.min(1.0, score), // Cap at 1.0
+      reasoning: reasons.length > 0 ? reasons.join('; ') : 'Basic content match'
     };
   }
 }
