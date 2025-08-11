@@ -25,7 +25,6 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE TABLE IF NOT EXISTS human_sops (
     id SERIAL PRIMARY KEY,
     sop_id VARCHAR(50) UNIQUE NOT NULL,
-    phase INTEGER NOT NULL,
     data JSONB NOT NULL,
     version INTEGER DEFAULT 1,
     is_active BOOLEAN DEFAULT true,
@@ -38,7 +37,6 @@ CREATE TABLE IF NOT EXISTS agent_sops (
     id SERIAL PRIMARY KEY,
     sop_id VARCHAR(50) UNIQUE NOT NULL,
     human_sop_id INTEGER REFERENCES human_sops(id) ON DELETE SET NULL,
-    phase INTEGER NOT NULL,
     data JSONB NOT NULL,
     searchable_content TEXT,
     version INTEGER DEFAULT 1,
@@ -105,17 +103,15 @@ CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at);
 
 -- Human SOPs indexes
 CREATE INDEX IF NOT EXISTS idx_human_sops_sop_id ON human_sops(sop_id);
-CREATE INDEX IF NOT EXISTS idx_human_sops_phase ON human_sops(phase);
 CREATE INDEX IF NOT EXISTS idx_human_sops_is_active ON human_sops(is_active);
-CREATE INDEX IF NOT EXISTS idx_human_sops_title ON human_sops USING GIN ((data->>'title'));
+CREATE INDEX IF NOT EXISTS idx_human_sops_title ON human_sops USING GIN (to_tsvector('english', COALESCE(data->>'title', '')));
 
 -- Agent SOPs indexes
 CREATE INDEX IF NOT EXISTS idx_agent_sops_sop_id ON agent_sops(sop_id);
-CREATE INDEX IF NOT EXISTS idx_agent_sops_phase ON agent_sops(phase);
 CREATE INDEX IF NOT EXISTS idx_agent_sops_is_active ON agent_sops(is_active);
 CREATE INDEX IF NOT EXISTS idx_agent_sops_human_sop_id ON agent_sops(human_sop_id);
-CREATE INDEX IF NOT EXISTS idx_agent_sops_searchable ON agent_sops USING GIN (to_tsvector('english', searchable_content));
-CREATE INDEX IF NOT EXISTS idx_agent_sops_keywords ON agent_sops USING GIN ((data->'keywords'));
+CREATE INDEX IF NOT EXISTS idx_agent_sops_searchable ON agent_sops USING GIN (to_tsvector('english', COALESCE(searchable_content, '')));
+CREATE INDEX IF NOT EXISTS idx_agent_sops_keywords ON agent_sops USING GIN ((data->'keywords')) WHERE data->'keywords' IS NOT NULL;
 
 -- Chat histories indexes
 CREATE INDEX IF NOT EXISTS idx_chat_histories_session_id ON chat_histories(session_id);
@@ -176,11 +172,6 @@ CREATE TRIGGER update_message_feedback_updated_at BEFORE UPDATE ON message_feedb
 ALTER TABLE projects ADD CONSTRAINT check_project_id_format 
     CHECK (project_id ~ '^PRO-[0-9]{3}$');
 
-ALTER TABLE human_sops ADD CONSTRAINT check_phase_positive 
-    CHECK (phase > 0);
-
-ALTER TABLE agent_sops ADD CONSTRAINT check_phase_positive 
-    CHECK (phase > 0);
 
 ALTER TABLE chat_histories ADD CONSTRAINT check_status_valid 
     CHECK (status IN ('active', 'completed', 'abandoned'));

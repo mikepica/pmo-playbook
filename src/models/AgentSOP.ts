@@ -24,7 +24,6 @@ export interface AgentSOPRecord {
   id: number;
   sopId: string;
   humanSopId: number | null; // PostgreSQL foreign key
-  phase: number;
   data: AgentSOPData;
   searchableContent: string;
   version: number;
@@ -47,35 +46,25 @@ export class AgentSOPModel extends PostgresModel {
     return null;
   }
   
-  async getActiveByPhase(phase: number): Promise<AgentSOPRecord[]> {
-    const results = await this.findMany(
-      { phase, is_active: true },
-      { orderBy: 'sop_id ASC' }
-    );
-    return results.map(row => this.mapToRecord(row));
-  }
-  
   async getAllSummaries(): Promise<Array<{
     sopId: string;
     title: string;
-    phase: number;
     summary: string;
     keywords: string[];
     keyActivities: string[];
     deliverables: string[];
   }>> {
     const query = `
-      SELECT sop_id, phase, data
+      SELECT sop_id, data
       FROM agent_sops 
       WHERE is_active = true
-      ORDER BY phase ASC, sop_id ASC
+      ORDER BY sop_id ASC
     `;
     const result = await this.pool.query(query);
     
     return result.rows.map(row => ({
       sopId: row.sop_id,
       title: row.data.title,
-      phase: row.phase,
       summary: row.data.summary,
       keywords: row.data.keywords || [],
       keyActivities: row.data.sections?.keyActivities?.slice(0, 3) || [],
@@ -89,7 +78,7 @@ export class AgentSOPModel extends PostgresModel {
       SELECT * FROM agent_sops 
       WHERE is_active = true 
       AND (${keywordConditions})
-      ORDER BY phase ASC, sop_id ASC
+      ORDER BY sop_id ASC
     `;
     const result = await this.pool.query(query);
     return result.rows.map(row => this.mapToRecord(row));
@@ -101,21 +90,20 @@ export class AgentSOPModel extends PostgresModel {
       FROM agent_sops 
       WHERE is_active = true 
       AND to_tsvector('english', searchable_content) @@ plainto_tsquery('english', $1)
-      ORDER BY rank DESC, phase ASC
+      ORDER BY rank DESC
       LIMIT 5
     `;
     const result = await this.pool.query(query, [searchQuery]);
     return result.rows.map(row => this.mapToRecord(row));
   }
   
-  async createSOP(sopId: string, phase: number, data: AgentSOPData, humanSopId?: number): Promise<AgentSOPRecord> {
+  async createSOP(sopId: string, data: AgentSOPData, humanSopId?: number): Promise<AgentSOPRecord> {
     // Generate searchable content
     const searchableContent = this.generateSearchableContent(data);
     
     const result = await this.create({
       sop_id: sopId,
       human_sop_id: humanSopId || null,
-      phase,
       data: JSON.stringify(data),
       searchable_content: searchableContent,
       version: 1,
@@ -147,7 +135,6 @@ export class AgentSOPModel extends PostgresModel {
       id: row.id,
       sopId: row.sop_id,
       humanSopId: row.human_sop_id,
-      phase: row.phase,
       data: row.data,
       searchableContent: row.searchable_content,
       version: row.version,
@@ -163,7 +150,6 @@ export class AgentSOPModel extends PostgresModel {
     return {
       sopId: sop.sopId,
       title: sop.data.title,
-      phase: sop.phase,
       summary: sop.data.summary,
       sections: sop.data.sections,
       keywords: sop.data.keywords,
@@ -182,7 +168,7 @@ export class AgentSOPModel extends PostgresModel {
       SELECT * FROM agent_sops 
       WHERE sop_id IN (${placeholders}) 
       AND is_active = true
-      ORDER BY phase ASC, sop_id ASC
+      ORDER BY sop_id ASC
     `;
     
     const result = await this.pool.query(query, sopIds);
@@ -209,7 +195,7 @@ export class AgentSOPModel extends PostgresModel {
       FROM agent_sops 
       WHERE is_active = true
       AND (${keywordConditions.join(' OR ')})
-      ORDER BY match_count DESC, phase ASC
+      ORDER BY match_count DESC, sop_id ASC
       LIMIT $${keywords.length + 1}
     `;
     
@@ -223,24 +209,6 @@ export class AgentSOPModel extends PostgresModel {
         row.data.keywords && row.data.keywords.includes(keyword)
       )
     }));
-  }
-
-  /**
-   * Find SOPs related by phase proximity (for cross-phase queries)
-   */
-  async findByPhaseRange(centerPhase: number, range: number = 1): Promise<AgentSOPRecord[]> {
-    const minPhase = Math.max(1, centerPhase - range);
-    const maxPhase = Math.min(5, centerPhase + range);
-    
-    const query = `
-      SELECT * FROM agent_sops 
-      WHERE is_active = true
-      AND phase BETWEEN $1 AND $2
-      ORDER BY ABS(phase - $3) ASC, phase ASC, sop_id ASC
-    `;
-    
-    const result = await this.pool.query(query, [minPhase, maxPhase, centerPhase]);
-    return result.rows.map(row => this.mapToRecord(row));
   }
 
   /**

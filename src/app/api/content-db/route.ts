@@ -19,7 +19,6 @@ export async function GET(request: Request) {
           _id: sop.id.toString(),
           sopId: sop.sopId,
           title: sop.data.title,
-          phase: sop.phase,
           version: sop.version,
           markdownContent: sop.data.markdownContent,
           updatedAt: sop.updatedAt
@@ -41,7 +40,6 @@ export async function GET(request: Request) {
         return NextResponse.json({ 
           content: sop.data.markdownContent,
           title: sop.data.title,
-          phase: sop.phase,
           version: sop.version,
           updatedAt: sop.updatedAt
         });
@@ -53,7 +51,6 @@ export async function GET(request: Request) {
         return NextResponse.json({ 
           content: AgentSOP.generateAIContext(sop),
           title: sop.data.title,
-          phase: sop.phase,
           summary: sop.data.summary
         });
       }
@@ -92,7 +89,7 @@ export async function PUT(request: Request) {
     };
     
     const newVersion = (existingSOP.version || 1) + 1;
-    await HumanSOP.updateById(existingSOP.id, updatedData, newVersion, existingSOP.phase);
+    await HumanSOP.updateById(existingSOP.id, updatedData, newVersion);
     
     // Get the updated SOP for response
     const updatedSOP = await HumanSOP.findBySopId(sopId);
@@ -134,5 +131,110 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Update error:', error);
     return NextResponse.json({ error: 'Failed to update SOP' }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { title, markdownContent } = body;
+    
+    if (!title || !markdownContent) {
+      return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
+    }
+    
+    // Generate next available SOP ID
+    const sopId = await HumanSOP.getNextSopId();
+    
+    // Create the HumanSOP data
+    const sopData = {
+      title: title.trim(),
+      markdownContent: markdownContent.trim(),
+      createdBy: 'admin', // TODO: Get from auth context
+      lastModifiedBy: 'admin'
+    };
+    
+    // Create the HumanSOP
+    const newSOP = await HumanSOP.createSOP(sopId, sopData);
+    
+    // Auto-generate AgentSOP
+    const regenerationResult = await regenerateAgentSOP(sopId);
+    
+    if (!regenerationResult.success) {
+      console.error('Failed to create AgentSOP:', regenerationResult.message);
+      
+      // Return success for HumanSOP creation but include warning
+      return NextResponse.json({ 
+        success: true,
+        sop: {
+          _id: newSOP.id.toString(),
+          sopId: newSOP.sopId,
+          title: newSOP.data.title,
+          version: newSOP.version,
+          markdownContent: newSOP.data.markdownContent,
+          updatedAt: newSOP.updatedAt
+        },
+        warning: `SOP created but AgentSOP generation failed: ${regenerationResult.message}`,
+        regenerationErrors: regenerationResult.errors,
+        regenerationWarnings: regenerationResult.warnings
+      });
+    }
+    
+    return NextResponse.json({ 
+      success: true,
+      sop: {
+        _id: newSOP.id.toString(),
+        sopId: newSOP.sopId,
+        title: newSOP.data.title,
+        version: newSOP.version,
+        markdownContent: newSOP.data.markdownContent,
+        updatedAt: newSOP.updatedAt
+      },
+      agentSOPCreated: true,
+      agentSOPVersion: regenerationResult.agentSOP?.version,
+      regenerationWarnings: regenerationResult.warnings
+    });
+    
+  } catch (error) {
+    console.error('Create SOP error:', error);
+    return NextResponse.json({ error: 'Failed to create SOP' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const sopId = searchParams.get('sopId');
+    
+    if (!sopId) {
+      return NextResponse.json({ error: 'Missing sopId parameter' }, { status: 400 });
+    }
+    
+    // Find the HumanSOP first to verify it exists
+    const humanSOP = await HumanSOP.findBySopId(sopId);
+    
+    if (!humanSOP) {
+      return NextResponse.json({ error: 'SOP not found' }, { status: 404 });
+    }
+    
+    // Delete the AgentSOP first (if it exists)
+    const agentSOP = await AgentSOP.findBySopId(sopId);
+    if (agentSOP) {
+      await AgentSOP.delete({ sop_id: sopId });
+    }
+    
+    // Delete the HumanSOP
+    await HumanSOP.delete({ sop_id: sopId });
+    
+    return NextResponse.json({ 
+      success: true,
+      message: `SOP ${sopId} deleted successfully`,
+      deletedHumanSOP: true,
+      deletedAgentSOP: !!agentSOP
+    });
+    
+  } catch (error) {
+    console.error('Delete SOP error:', error);
+    return NextResponse.json({ error: 'Failed to delete SOP' }, { status: 500 });
   }
 }

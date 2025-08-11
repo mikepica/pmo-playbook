@@ -28,17 +28,18 @@ export async function regenerateAgentSOP(sopId: string): Promise<RegenerationRes
       };
     }
     
-    // Parse the markdown content
-    const parsedSOP = parseSOPMarkdown(humanSOP.data.markdownContent, sopId);
+    // Parse the markdown content with the actual title from HumanSOP
+    const parsedSOP = parseSOPMarkdown(humanSOP.data.markdownContent, sopId, humanSOP.data.title);
     
     // Validate the structure
     const validation = validateSOPStructure(parsedSOP);
     
-    if (!validation.isValid) {
+    // New validation system is much more permissive - only fail if completely empty
+    if (validation.qualityScore < 5) {
       return {
         success: false,
-        message: 'SOP validation failed',
-        errors: validation.errors,
+        message: 'SOP appears to be empty or contains no extractable content. Please add some content.',
+        errors: ['Add at least a title and some basic content'],
         warnings: validation.warnings
       };
     }
@@ -55,7 +56,7 @@ export async function regenerateAgentSOP(sopId: string): Promise<RegenerationRes
         description: parsedSOP.description,
         sections: parsedSOP.sections,
         keywords: parsedSOP.keywords,
-        relatedSopIds: getRelatedSOPIds(parsedSOP.phase),
+        relatedSopIds: getRelatedSOPIds(),
         humanSopId: humanSOP.id.toString()
       };
       
@@ -89,11 +90,11 @@ export async function regenerateAgentSOP(sopId: string): Promise<RegenerationRes
         description: parsedSOP.description,
         sections: parsedSOP.sections,
         keywords: parsedSOP.keywords,
-        relatedSopIds: getRelatedSOPIds(parsedSOP.phase),
+        relatedSopIds: getRelatedSOPIds(),
         humanSopId: humanSOP.id.toString()
       };
       
-      const newAgentSOP = await AgentSOP.createSOP(sopId, parsedSOP.phase, agentSOPData, humanSOP.id);
+      const newAgentSOP = await AgentSOP.createSOP(sopId, agentSOPData, humanSOP.id);
       
       return {
         success: true,
@@ -153,17 +154,11 @@ export async function regenerateAllAgentSOPs(): Promise<{
   }
 }
 
-// Helper function to determine related SOPs based on phase
-function getRelatedSOPIds(phase: number): string[] {
-  const relatedSOPs: Record<number, string[]> = {
-    1: ['SOP-002'], // Pre-Initiate relates to Initiate
-    2: ['SOP-001', 'SOP-003'], // Initiate relates to Pre-Initiate and Design
-    3: ['SOP-002', 'SOP-004'], // Design relates to Initiate and Implement
-    4: ['SOP-003', 'SOP-005'], // Implement relates to Design and Close
-    5: ['SOP-004'] // Close relates to Implement
-  };
-  
-  return relatedSOPs[phase] || [];
+// Helper function to determine related SOPs - now returns empty since phases are removed
+function getRelatedSOPIds(): string[] {
+  // Without phases, we don't have automatic relationship detection
+  // Related SOPs could be determined by other means in the future (keywords, content analysis, etc.)
+  return [];
 }
 
 // Function to check if AgentSOP needs regeneration

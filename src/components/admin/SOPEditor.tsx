@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Save, Eye, Edit, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Save, Eye, Edit, AlertCircle, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -9,76 +9,117 @@ interface SOP {
   _id: string;
   sopId: string;
   title: string;
-  phase: number;
   version: number;
   markdownContent: string;
   updatedAt: string;
 }
 
 interface SOPEditorProps {
-  sop: SOP;
+  sop: SOP | null;
   editMode: boolean;
+  createMode?: boolean;
   onSOPUpdate: (sop: SOP) => void;
+  onSOPCreate?: (sop: SOP) => void;
   onEditModeChange: (editMode: boolean) => void;
+  onCancel?: () => void;
 }
 
-export default function SOPEditor({ sop, editMode, onSOPUpdate, onEditModeChange }: SOPEditorProps) {
-  const [content, setContent] = useState(sop.markdownContent);
+export default function SOPEditor({ 
+  sop, 
+  editMode, 
+  createMode = false, 
+  onSOPUpdate, 
+  onSOPCreate, 
+  onEditModeChange, 
+  onCancel 
+}: SOPEditorProps) {
+  const [content, setContent] = useState(createMode ? '# New SOP\n\nWrite your Standard Operating Procedure here using any format that works for you. The system will automatically extract the relevant information to create a structured version for AI assistance.\n\n' : (sop?.markdownContent || ''));
+  const [title, setTitle] = useState(createMode ? '' : (sop?.title || ''));
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
-    setHasChanges(newContent !== sop.markdownContent);
+    setHasChanges(createMode || newContent !== (sop?.markdownContent || ''));
+  };
+
+  const handleTitleChange = (newTitle: string) => {
+    setTitle(newTitle);
+    setHasChanges(createMode || newTitle !== (sop?.title || ''));
   };
 
   const handleSave = async () => {
     if (!hasChanges) return;
     
+    // Validation
+    if (!title.trim()) {
+      alert('Title is required');
+      return;
+    }
+    
+    if (!content.trim()) {
+      alert('Content is required');
+      return;
+    }
+    
     setSaving(true);
     try {
+      const method = createMode ? 'POST' : 'PUT';
+      const body = createMode 
+        ? {
+            title: title.trim(),
+            markdownContent: content.trim()
+          }
+        : {
+            sopId: sop!.sopId,
+            markdownContent: content.trim(),
+            type: 'human'
+          };
+
       const response = await fetch('/api/content-db', {
-        method: 'PUT',
+        method,
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          sopId: sop.sopId,
-          markdownContent: content,
-          type: 'human'
-        })
+        body: JSON.stringify(body)
       });
 
       if (response.ok) {
         const data = await response.json();
-        const updatedSOP = {
-          ...sop,
-          markdownContent: content,
-          version: data.sop.version,
-          updatedAt: data.sop.updatedAt
-        };
         
-        onSOPUpdate(updatedSOP);
+        if (createMode) {
+          onSOPCreate && onSOPCreate(data.sop);
+        } else {
+          const updatedSOP = {
+            ...sop!,
+            markdownContent: content,
+            version: data.sop.version,
+            updatedAt: data.sop.updatedAt
+          };
+          
+          onSOPUpdate(updatedSOP);
+        }
+        
         setHasChanges(false);
         onEditModeChange(false);
         
         // Show regeneration feedback
         if (data.warning) {
           alert(`Warning: ${data.warning}\n\nErrors: ${data.regenerationErrors?.join('\n') || 'None'}\n\nWarnings: ${data.regenerationWarnings?.join('\n') || 'None'}`);
-        } else if (data.agentSOPRegenerated) {
-          console.log(`SOP and AgentSOP updated successfully. AgentSOP version: ${data.agentSOPVersion}`);
+        } else if (data.agentSOPRegenerated || data.agentSOPCreated) {
+          console.log(`SOP ${createMode ? 'created' : 'updated'} and AgentSOP processed successfully. AgentSOP version: ${data.agentSOPVersion}`);
           if (data.regenerationWarnings?.length > 0) {
             console.log('Regeneration warnings:', data.regenerationWarnings);
           }
         }
       } else {
         const errorData = await response.json();
-        alert(`Failed to save SOP: ${errorData.error || 'Unknown error'}`);
+        alert(`Failed to ${createMode ? 'create' : 'save'} SOP: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Save failed:', error);
-      alert('Failed to save SOP');
+      alert(`Failed to ${createMode ? 'create' : 'save'} SOP`);
     } finally {
       setSaving(false);
     }
@@ -87,12 +128,20 @@ export default function SOPEditor({ sop, editMode, onSOPUpdate, onEditModeChange
   const handleCancel = () => {
     if (hasChanges) {
       if (confirm('You have unsaved changes. Are you sure you want to cancel?')) {
-        setContent(sop.markdownContent);
-        setHasChanges(false);
-        onEditModeChange(false);
+        if (createMode) {
+          onCancel && onCancel();
+        } else {
+          setContent(sop!.markdownContent);
+          setHasChanges(false);
+          onEditModeChange(false);
+        }
       }
     } else {
-      onEditModeChange(false);
+      if (createMode) {
+        onCancel && onCancel();
+      } else {
+        onEditModeChange(false);
+      }
     }
   };
 
@@ -156,12 +205,40 @@ export default function SOPEditor({ sop, editMode, onSOPUpdate, onEditModeChange
               ) : (
                 <>
                   <Save className="w-4 h-4 mr-2" />
-                  Save Changes
+                  {createMode ? 'Create SOP' : 'Save Changes'}
                 </>
               )}
             </button>
           </div>
         </div>
+
+        {/* Form Fields - for both create and edit modes */}
+        {(createMode || (!createMode && sop)) && (
+          <div className="p-4 bg-gray-50 border-b border-gray-200">
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label htmlFor="title" className="block text-sm font-medium text-black mb-2">
+                  SOP Title *
+                </label>
+                {createMode ? (
+                  <input
+                    id="title"
+                    type="text"
+                    value={title}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="Enter SOP title..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                    required
+                  />
+                ) : (
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-black">
+                    {sop?.title}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Editor Content */}
         <div className="flex-1 overflow-hidden">
@@ -205,7 +282,7 @@ export default function SOPEditor({ sop, editMode, onSOPUpdate, onEditModeChange
                 value={content}
                 onChange={(e) => handleContentChange(e.target.value)}
                 className="w-full h-full p-4 border border-gray-300 rounded-lg font-mono text-sm text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                placeholder="Enter markdown content..."
+                placeholder={createMode ? "Replace the template placeholders with your specific content..." : "Enter markdown content..."}
                 spellCheck={false}
               />
             </div>
@@ -216,6 +293,18 @@ export default function SOPEditor({ sop, editMode, onSOPUpdate, onEditModeChange
   }
 
   // View Mode
+  if (!sop) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center text-gray-500">
+          <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+          <h3 className="text-lg font-medium mb-2">No SOP Selected</h3>
+          <p>Choose an SOP from the list to view or create a new one</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-y-auto p-6 bg-white">
       <div className="max-w-4xl mx-auto">

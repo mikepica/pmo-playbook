@@ -10,7 +10,6 @@ export interface HumanSOPData {
 export interface HumanSOPRecord {
   id: number;
   sopId: string;
-  phase: number;
   data: HumanSOPData;
   version: number;
   isActive: boolean;
@@ -31,26 +30,17 @@ export class HumanSOPModel extends PostgresModel {
     return null;
   }
   
-  async getActiveByPhase(phase: number): Promise<HumanSOPRecord[]> {
+  async getAllActiveSOPs(): Promise<HumanSOPRecord[]> {
     const results = await this.findMany(
-      { phase, is_active: true },
+      { is_active: true },
       { orderBy: 'sop_id ASC' }
     );
     return results.map(row => this.mapToRecord(row));
   }
   
-  async getAllActiveSOPs(): Promise<HumanSOPRecord[]> {
-    const results = await this.findMany(
-      { is_active: true },
-      { orderBy: 'phase ASC, sop_id ASC' }
-    );
-    return results.map(row => this.mapToRecord(row));
-  }
-  
-  async createSOP(sopId: string, phase: number, data: HumanSOPData): Promise<HumanSOPRecord> {
+  async createSOP(sopId: string, data: HumanSOPData): Promise<HumanSOPRecord> {
     const result = await this.create({
       sop_id: sopId,
-      phase,
       data: JSON.stringify(data),
       version: 1,
       is_active: true
@@ -58,13 +48,12 @@ export class HumanSOPModel extends PostgresModel {
     return this.mapToRecord(result);
   }
   
-  async updateById(id: number, data: HumanSOPData, version: number, phase: number): Promise<HumanSOPRecord> {
+  async updateById(id: number, data: HumanSOPData, version: number): Promise<HumanSOPRecord> {
     const results = await super.update(
       { id },
       { 
         data: JSON.stringify(data),
-        version,
-        phase
+        version
       }
     );
     
@@ -98,7 +87,7 @@ export class HumanSOPModel extends PostgresModel {
       SELECT * FROM human_sops 
       WHERE is_active = true 
       AND data->>'title' ILIKE $1
-      ORDER BY phase ASC, sop_id ASC
+      ORDER BY sop_id ASC
     `;
     const result = await this.pool.query(query, [`%${searchTerm}%`]);
     return result.rows.map(row => this.mapToRecord(row));
@@ -108,7 +97,6 @@ export class HumanSOPModel extends PostgresModel {
     return {
       id: row.id,
       sopId: row.sop_id,
-      phase: row.phase,
       data: row.data,
       version: row.version,
       isActive: row.is_active,
@@ -117,6 +105,26 @@ export class HumanSOPModel extends PostgresModel {
     };
   }
   
+  // Method to generate next available SOP ID
+  async getNextSopId(): Promise<string> {
+    const query = `
+      SELECT sop_id FROM human_sops 
+      WHERE sop_id ~ '^SOP-[0-9]{3}$'
+      ORDER BY sop_id DESC 
+      LIMIT 1
+    `;
+    const result = await this.pool.query(query);
+    
+    if (result.rows.length === 0) {
+      return 'SOP-001';
+    }
+    
+    const lastId = result.rows[0].sop_id;
+    const lastNumber = parseInt(lastId.split('-')[1]);
+    const nextNumber = lastNumber + 1;
+    return `SOP-${nextNumber.toString().padStart(3, '0')}`;
+  }
+
   // Method to create version snapshot for change tracking
   createSnapshot(sop: HumanSOPRecord) {
     return {
