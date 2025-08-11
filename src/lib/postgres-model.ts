@@ -1,5 +1,8 @@
-import { Pool } from '@neondatabase/serverless';
+import { Pool as NeonPool } from '@neondatabase/serverless';
+import { Pool as PgPool } from 'pg';
 import { getPostgresPool } from './postgres';
+
+type Pool = NeonPool | PgPool;
 
 export class PostgresModel {
   protected pool: Pool;

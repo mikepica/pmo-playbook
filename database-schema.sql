@@ -197,6 +197,10 @@ ALTER TABLE user_feedback ADD CONSTRAINT check_status_valid
 ALTER TABLE user_feedback ADD CONSTRAINT check_priority_valid 
     CHECK (priority IN ('low', 'medium', 'high', 'critical'));
 
+-- Create extensions for better text search and JSON handling
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS btree_gin;
+
 -- Create views for common queries
 
 -- View for active projects summary
@@ -240,41 +244,6 @@ FROM user_feedback
 ORDER BY created_at DESC
 LIMIT 50;
 
--- Create sample admin user and roles (optional)
--- Uncomment if you want to create roles
-
-/*
--- Create roles
-CREATE ROLE pmo_admin;
-CREATE ROLE pmo_user;
-CREATE ROLE pmo_readonly;
-
--- Grant permissions to roles
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO pmo_admin;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO pmo_admin;
-
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO pmo_user;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pmo_user;
-
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO pmo_readonly;
-
--- Create sample users (replace with your actual usernames/passwords)
--- CREATE USER pmo_app WITH PASSWORD 'your_secure_password';
--- GRANT pmo_user TO pmo_app;
-*/
-
--- Performance optimization settings
--- These should be adjusted based on your server specs and usage patterns
-
--- For better JSONB performance
-SET work_mem = '256MB';
-SET maintenance_work_mem = '1GB';
-SET shared_preload_libraries = 'pg_stat_statements';
-
--- Create extensions for better text search and JSON handling
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE EXTENSION IF NOT EXISTS btree_gin;
-
 -- Add comment metadata to tables
 COMMENT ON TABLE projects IS 'Project management data with JSONB flexible schema';
 COMMENT ON TABLE human_sops IS 'Human-authored Standard Operating Procedures';
@@ -292,3 +261,12 @@ BEGIN
     RAISE NOTICE 'Indexes and triggers created for optimal performance';
     RAISE NOTICE 'Views created for common queries';
 END $$;
+
+-- NOTES FOR POSTGRESQL.CONF CONFIGURATION:
+-- The following settings should be configured in postgresql.conf for optimal performance:
+--
+-- work_mem = 256MB
+-- maintenance_work_mem = 1GB
+-- shared_preload_libraries = 'pg_stat_statements'  # Requires server restart
+--
+-- These settings control memory usage and should be adjusted based on your server specifications.
