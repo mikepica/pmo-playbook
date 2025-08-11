@@ -10,7 +10,6 @@ interface SOP {
   id: string;
   filename: string;
   title: string;
-  phase: number;
 }
 
 export default function SOPPage() {

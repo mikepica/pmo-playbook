@@ -59,8 +59,7 @@ export async function POST(request: Request) {
         answer: generalResult.answer,
         sourceInfo: {
           sopId: 'GENERAL_PM_KNOWLEDGE',
-          title: 'General PM Expertise',
-          phase: 0
+          title: 'General PM Expertise'
         }
       };
       selectedSopIds = ['GENERAL_PM_KNOWLEDGE'];
@@ -74,8 +73,7 @@ export async function POST(request: Request) {
         answer: multiResult.answer,
         sourceInfo: {
           sopId: sopSelection.selectedSops[0]?.sopId || 'UNKNOWN',
-          title: multiResult.sopSources[0]?.sopId || 'Multiple SOPs',
-          phase: 0 // Multi-SOP doesn't have a single phase
+          title: multiResult.sopSources[0]?.sopId || 'Multiple SOPs'
         }
       };
       selectedSopIds = sopSelection.selectedSops.map(s => s.sopId);
@@ -139,8 +137,7 @@ export async function POST(request: Request) {
       attribution: {
         selectedSOP: {
           sopId: answerResult.sourceInfo.sopId,
-          title: answerResult.sourceInfo.title,
-          phase: answerResult.sourceInfo.phase
+          title: answerResult.sourceInfo.title
         },
         confidence: sopSelection.overallConfidence,
         reasoning: sopSelection.reasoning,

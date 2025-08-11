@@ -39,10 +39,10 @@ async function addPerformanceOptimizations() {
     console.log('   ✅ Projects active+created index');
     
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_sops_phase_active 
-      ON human_sops(phase, is_active) WHERE is_active = true
+      CREATE INDEX IF NOT EXISTS idx_sops_active_created 
+      ON human_sops(is_active, created_at DESC) WHERE is_active = true
     `);
-    console.log('   ✅ SOPs phase+active index');
+    console.log('   ✅ SOPs active+created index');
     
     // Add JSONB path indexes for frequently accessed fields
     console.log('\n📊 Adding JSONB path indexes...');

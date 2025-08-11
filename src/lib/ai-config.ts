@@ -13,9 +13,11 @@ export interface MultiSOPConfig {
   enabled: boolean;
   max_sops_per_query: number;
   min_relevance_score: number;
-  combination_strategy: 'hierarchical' | 'equal_weight' | 'primary_focused';
+  combination_strategy: 'hierarchical' | 'equal_weight' | 'primary_focused' | 'semantic_weighted';
   allow_cross_references: boolean;
-  overlap_handling: 'merge' | 'dedupe' | 'separate';
+  overlap_handling: 'merge' | 'dedupe' | 'separate' | 'intelligent';
+  relationship_detection?: boolean;
+  context_merging?: 'smart' | 'simple';
 }
 
 export interface AIModeConfig {
@@ -34,7 +36,7 @@ export interface FlowConfig {
   confidence_threshold: number;
   conversation_history_limit: number;
   fallback_to_general: boolean;
-  enable_cross_phase_queries: boolean;
+  enable_cross_topic_queries: boolean;
   max_context_tokens: number;
   routing: {
     prefer_multi_sop: boolean;
@@ -45,8 +47,20 @@ export interface FlowConfig {
 export interface ContentConfig {
   sop_context_fields: string[];
   include_cross_references: boolean;
-  show_phase_transitions: boolean;
+  show_topic_relationships: boolean;
   add_best_practices: boolean;
+  use_parser_metadata?: boolean;
+  deduplicate_content?: boolean;
+  merge_similar_sections?: boolean;
+}
+
+export interface SemanticAnalysisConfig {
+  enabled: boolean;
+  use_quality_scores: boolean;
+  format_aware: boolean;
+  relationship_threshold: number;
+  topic_clustering: boolean;
+  content_similarity_threshold: number;
 }
 
 export interface ValidationConfig {
@@ -114,6 +128,7 @@ export interface AIConfig {
   };
   flow: FlowConfig;
   content: ContentConfig;
+  semantic_analysis?: SemanticAnalysisConfig;
   prompts: Record<string, string>;
   environments?: Record<string, Partial<AIConfig>>;
   features: FeatureFlags;

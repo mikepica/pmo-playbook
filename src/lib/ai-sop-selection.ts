@@ -28,7 +28,7 @@ export interface AnswerGenerationResult {
   sourceInfo: {
     sopId: string;
     title: string;
-    phase: number;
+    format?: string;
   };
 }
 
@@ -48,7 +48,6 @@ export async function selectBestSOP(userQuery: string): Promise<SOPSelectionResu
     const sopList = sopSummaries.map(sop => 
       `- sopId: ${sop.sopId}
    title: "${sop.title}" 
-   phase: ${sop.phase}
    summary: "${sop.summary}"
    key_activities: "${sop.keyActivities?.slice(0, 3).join(', ') || 'N/A'}"
    deliverables: "${sop.deliverables?.slice(0, 3).join(', ') || 'N/A'}"
@@ -64,8 +63,8 @@ ${sopList}
 
 Instructions:
 1. Analyze the user's question to understand their specific intent and needs
-2. Match it to the most appropriate SOP based on the phase, activities, deliverables, and keywords
-3. Consider the full project lifecycle: Pre-Initiate → Initiate → Design & Plan → Implement & Control → Close & Realize Benefits
+2. Match it to the most appropriate SOP based on topic similarity, activities, deliverables, and keywords
+3. Consider semantic relationships and process workflows between SOPs
 4. If no SOP adequately covers the question (confidence < 0.6), indicate this should be answered with general knowledge
 5. Respond with ONLY a JSON object in this format:
 {

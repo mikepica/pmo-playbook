@@ -10,7 +10,6 @@ interface SOP {
   id: string;
   filename: string;
   title: string;
-  phase: number;
 }
 
 interface SOPTabsProps {
@@ -76,7 +75,7 @@ export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPT
                 }`}
                 title={sop.title}
               >
-                Phase {sop.phase}: {sop.title}
+                {sop.title}
               </button>
             ))}
           </div>

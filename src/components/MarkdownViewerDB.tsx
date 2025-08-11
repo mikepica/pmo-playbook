@@ -14,7 +14,6 @@ export default function MarkdownViewerDB({ selectedSOP }: MarkdownViewerDBProps)
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
   const [metadata, setMetadata] = useState<{
-    phase?: number;
     version?: number;
     updatedAt?: string;
   }>({});
@@ -37,7 +36,6 @@ export default function MarkdownViewerDB({ selectedSOP }: MarkdownViewerDBProps)
           setContent(data.content || '');
           setTitle(data.title || selectedSOP);
           setMetadata({
-            phase: data.phase,
             version: data.version,
             updatedAt: data.updatedAt
           });
@@ -88,7 +86,6 @@ export default function MarkdownViewerDB({ selectedSOP }: MarkdownViewerDBProps)
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
             <div className="flex items-center gap-4 text-sm text-gray-500">
-              <span>Phase {metadata.phase}</span>
               <span>Version {metadata.version}</span>
               {metadata.updatedAt && (
                 <span>Updated: {new Date(metadata.updatedAt).toLocaleDateString()}</span>

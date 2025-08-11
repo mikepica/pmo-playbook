@@ -18,7 +18,7 @@ async function checkCurrentState() {
     const humanSOPs = await HumanSOP.getAllActiveSOPs();
     console.log(`📋 Found ${humanSOPs.length} active Human SOPs:`);
     humanSOPs.forEach(sop => {
-      console.log(`  - ${sop.sopId}: "${sop.data.title}" (v${sop.version}) - Phase ${sop.phase}`);
+      console.log(`  - ${sop.sopId}: "${sop.data.title}" (v${sop.version})`);
     });
     
     console.log('\n🤖 Checking Agent SOPs:');

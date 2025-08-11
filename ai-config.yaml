@@ -12,9 +12,11 @@ multi_sop:
   enabled: true
   max_sops_per_query: 5
   min_relevance_score: 0.4
-  combination_strategy: "hierarchical"  # "hierarchical", "equal_weight", "primary_focused"
+  combination_strategy: "semantic_weighted"  # "hierarchical", "equal_weight", "primary_focused", "semantic_weighted"
   allow_cross_references: true
-  overlap_handling: "merge"  # "merge", "dedupe", "separate"
+  overlap_handling: "intelligent"  # "merge", "dedupe", "separate", "intelligent"
+  relationship_detection: true
+  context_merging: "smart"
 
 # AI Mode Configurations
 modes:
@@ -59,7 +61,7 @@ flow:
   confidence_threshold: 0.6
   conversation_history_limit: 4
   fallback_to_general: true
-  enable_cross_phase_queries: true
+  enable_cross_topic_queries: true
   max_context_tokens: 8000
   
   # Route prioritization
@@ -69,10 +71,22 @@ flow:
     
 # Content Enhancement
 content:
-  sop_context_fields: ["title", "phase", "summary", "keyActivities", "deliverables", "keywords"]
+  sop_context_fields: ["title", "summary", "keyActivities", "deliverables", "keywords", "format"]
   include_cross_references: true
-  show_phase_transitions: true
+  show_topic_relationships: true
   add_best_practices: true
+  use_parser_metadata: true
+  deduplicate_content: true
+  merge_similar_sections: true
+
+# Semantic Analysis Configuration
+semantic_analysis:
+  enabled: true
+  use_quality_scores: true
+  format_aware: true
+  relationship_threshold: 0.6
+  topic_clustering: true
+  content_similarity_threshold: 0.5
 
 # System Prompts (Multi-line YAML strings)
 prompts:
@@ -80,7 +94,7 @@ prompts:
     You are an expert PMO consultant with deep knowledge of project management methodologies and organizational processes. Your role is to analyze user questions and identify the most relevant Standard Operating Procedures (SOPs) that can provide comprehensive answers.
     
     You can select 1-3 SOPs that together provide complete guidance. Consider:
-    - Cross-phase dependencies and workflows
+    - Cross-topic dependencies and workflows
     - Topic overlaps between different SOPs  
     - Comprehensive coverage of the user's question
     - Real-world PM scenario complexity
@@ -90,15 +104,15 @@ prompts:
   sop_selection_user: |
     A user has asked this project management question: "{{userQuery}}"
     
-    Based on the following available SOPs, identify the most relevant ones (1-3) that together provide the best answer. Consider that many PM questions span multiple phases or require integrated guidance.
+    Based on the following available SOPs, identify the most relevant ones (1-3) that together provide the best answer. Consider that many PM questions span multiple topics or require integrated guidance.
     
     Available SOPs:
     {{sopList}}
     
     Analysis Framework:
-    1. Identify the primary topic and phase alignment
+    1. Identify the primary topic and content alignment
     2. Consider supporting/related topics that enhance the answer
-    3. Look for cross-phase dependencies or workflows
+    3. Look for cross-topic dependencies or workflows
     4. Evaluate if question needs general PM expertise instead
     
     Response Format:
@@ -143,7 +157,7 @@ prompts:
     {{#if isPrimarySop}}
     Primary SOP Information:
     Title: {{primarySop.title}}
-    Phase: {{primarySop.phase}}
+    Format: {{primarySop.format}}
     Summary: {{primarySop.summary}}
     
     Objectives:
@@ -179,7 +193,7 @@ prompts:
     Supporting SOPs:
     {{#each supportingSops}}
     
-    --- {{this.sopId}}: {{this.title}} (Phase {{this.phase}}) ---
+    --- {{this.sopId}}: {{this.title}} ({{this.format}}) ---
     Summary: {{this.summary}}
     Key Activities: {{#each this.sections.keyActivities}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
     Deliverables: {{#each this.sections.deliverables}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
@@ -191,7 +205,7 @@ prompts:
     2. Create a comprehensive answer that synthesizes information from all provided SOPs
     3. Show how different procedures connect and support each other
     4. Include specific steps, deliverables, and tools from the SOPs
-    5. Highlight cross-phase dependencies or workflows when relevant
+    5. Highlight cross-topic dependencies or workflows when relevant
     6. If multiple SOPs provide similar guidance, consolidate without redundancy
     7. Supplement with general PM knowledge only when it enhances the SOP-based guidance
     8. Acknowledge limitations if SOPs don't fully address certain aspects
@@ -311,7 +325,7 @@ validation:
   max_total_tokens: 10000
   min_confidence_score: 0.1
   max_conversation_history: 10
-  required_sop_fields: ["sopId", "title", "phase", "summary"]
+  required_sop_fields: ["sopId", "title", "summary", "format"]
 
 # Debugging & Analytics  
 debug:

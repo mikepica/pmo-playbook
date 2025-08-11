@@ -31,7 +31,6 @@ async function createSchema() {
       CREATE TABLE IF NOT EXISTS human_sops (
         id SERIAL PRIMARY KEY,
         sop_id VARCHAR(10) UNIQUE NOT NULL CHECK (sop_id ~ '^SOP-[0-9]{3}$'),
-        phase INTEGER NOT NULL CHECK (phase >= 1 AND phase <= 5),
         data JSONB NOT NULL,
         version INTEGER DEFAULT 1,
         is_active BOOLEAN DEFAULT true,
@@ -39,7 +38,6 @@ async function createSchema() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS idx_human_sops_sop_id ON human_sops(sop_id);
-      CREATE INDEX IF NOT EXISTS idx_human_sops_phase ON human_sops(phase);
       CREATE INDEX IF NOT EXISTS idx_human_sops_data ON human_sops USING GIN(data);
     `);
     console.log('✅ Human SOPs table created');
@@ -50,7 +48,6 @@ async function createSchema() {
         id SERIAL PRIMARY KEY,
         sop_id VARCHAR(10) UNIQUE NOT NULL CHECK (sop_id ~ '^SOP-[0-9]{3}$'),
         human_sop_id INTEGER REFERENCES human_sops(id),
-        phase INTEGER NOT NULL CHECK (phase >= 1 AND phase <= 5),
         data JSONB NOT NULL,
         searchable_content TEXT,
         version INTEGER DEFAULT 1,
@@ -60,7 +57,6 @@ async function createSchema() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS idx_agent_sops_sop_id ON agent_sops(sop_id);
-      CREATE INDEX IF NOT EXISTS idx_agent_sops_phase ON agent_sops(phase);
       CREATE INDEX IF NOT EXISTS idx_agent_sops_data ON agent_sops USING GIN(data);
       CREATE INDEX IF NOT EXISTS idx_agent_sops_search ON agent_sops USING GIN(to_tsvector('english', searchable_content));
     `);

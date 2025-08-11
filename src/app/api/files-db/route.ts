@@ -12,8 +12,7 @@ export async function GET(request: Request) {
       const sopList = sops.map(sop => ({
         id: sop.sopId,
         filename: `${sop.sopId} - ${sop.data.title}`,
-        title: sop.data.title,
-        phase: sop.phase
+        title: sop.data.title
       }));
       
       return NextResponse.json({ 
@@ -27,7 +26,6 @@ export async function GET(request: Request) {
         sops: summaries.map(sop => ({
           id: sop.sopId,
           title: sop.title,
-          phase: sop.phase,
           summary: sop.summary,
           keywords: sop.keywords
         }))

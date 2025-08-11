@@ -12,7 +12,6 @@ interface Message {
     selectedSOP: {
       sopId: string;
       title: string;
-      phase: number;
     };
     confidence: number;
     reasoning: string;
@@ -111,8 +110,7 @@ export default function ChatInterfaceAI() {
           attribution: msg.selectedSopId ? {
             selectedSOP: {
               sopId: msg.selectedSopId,
-              title: `Phase ${msg.selectedSopId.split('-')[1]} SOP`,
-              phase: parseInt(msg.selectedSopId.split('-')[1])
+              title: `SOP ${msg.selectedSopId}`
             },
             confidence: msg.confidence || 0.9,
             reasoning: 'From chat history'
@@ -195,8 +193,7 @@ export default function ChatInterfaceAI() {
           attribution: msg.selectedSopId ? {
             selectedSOP: {
               sopId: msg.selectedSopId,
-              title: `Phase ${msg.selectedSopId.split('-')[1]} SOP`,
-              phase: parseInt(msg.selectedSopId.split('-')[1])
+              title: `SOP ${msg.selectedSopId}`
             },
             confidence: msg.confidence || 0.9,
             reasoning: 'From chat history'
@@ -438,7 +435,7 @@ export default function ChatInterfaceAI() {
         markdown += `${message.content}\n\n`;
         
         if (message.attribution) {
-          markdown += `> **Source:** ${message.attribution.selectedSOP.sopId} - ${message.attribution.selectedSOP.title} (Phase ${message.attribution.selectedSOP.phase})\n`;
+          markdown += `> **Source:** ${message.attribution.selectedSOP.sopId} - ${message.attribution.selectedSOP.title}\n`;
           markdown += `> **Confidence:** ${Math.round(message.attribution.confidence * 100)}%\n`;
           
           const feedback = messageFeedback[message.id];
@@ -689,7 +686,7 @@ export default function ChatInterfaceAI() {
                         <div className="flex items-center text-xs text-gray-600">
                           <span className="font-medium">Source:</span>
                           <span className="ml-2 bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
-                            {message.attribution.selectedSOP.sopId}: Phase {message.attribution.selectedSOP.phase}
+                            {message.attribution.selectedSOP.sopId}
                           </span>
                           <span className="ml-2 text-gray-500">
                             {message.attribution.selectedSOP.title}

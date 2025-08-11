@@ -8,7 +8,7 @@ export interface TemplateContext {
 export interface SOPContext {
   sopId: string;
   title: string;
-  phase: number;
+  format?: string;
   summary: string;
   sections: {
     objectives: string[];

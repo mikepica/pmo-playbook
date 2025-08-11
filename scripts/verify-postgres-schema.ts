@@ -72,8 +72,8 @@ async function verifySchema() {
     
     // Test human_sops table
     await pool.query(`
-      INSERT INTO human_sops (sop_id, phase, data) 
-      VALUES ('SOP-999', 1, '{"title": "Test SOP", "content": "Test content"}')
+      INSERT INTO human_sops (sop_id, data) 
+      VALUES ('SOP-999', '{"title": "Test SOP", "content": "Test content"}')
     `);
     const sopTest = await pool.query(`
       SELECT data->>'title' as title FROM human_sops WHERE sop_id = 'SOP-999'

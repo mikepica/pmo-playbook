@@ -11,7 +11,6 @@ interface Message {
     selectedSOP: {
       sopId: string;
       title: string;
-      phase: number;
     };
     confidence: number;
     reasoning: string;

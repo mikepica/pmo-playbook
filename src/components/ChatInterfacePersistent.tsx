@@ -13,7 +13,6 @@ interface Message {
     selectedSOP: {
       sopId: string;
       title: string;
-      phase: number;
     };
     confidence: number;
     reasoning: string;
@@ -133,8 +132,7 @@ export default function ChatInterfacePersistent() {
           attribution: msg.selectedSopId ? {
             selectedSOP: {
               sopId: msg.selectedSopId,
-              title: `Phase ${msg.selectedSopId.split('-')[1]} SOP`,
-              phase: parseInt(msg.selectedSopId.split('-')[1])
+              title: `SOP ${msg.selectedSopId}`
             },
             confidence: msg.confidence || 0.9,
             reasoning: 'From chat history'
@@ -217,8 +215,7 @@ export default function ChatInterfacePersistent() {
           attribution: msg.selectedSopId ? {
             selectedSOP: {
               sopId: msg.selectedSopId,
-              title: `Phase ${msg.selectedSopId.split('-')[1]} SOP`,
-              phase: parseInt(msg.selectedSopId.split('-')[1])
+              title: `SOP ${msg.selectedSopId}`
             },
             confidence: msg.confidence || 0.9,
             reasoning: 'From chat history'
@@ -463,7 +460,7 @@ export default function ChatInterfacePersistent() {
           if (message.attribution.selectedSOP.sopId === 'GENERAL_PM_KNOWLEDGE') {
             markdown += `> **Source:** General PM Expertise\n`;
           } else {
-            markdown += `> **Source:** ${message.attribution.selectedSOP.sopId} - ${message.attribution.selectedSOP.title} (Phase ${message.attribution.selectedSOP.phase})\n`;
+            markdown += `> **Source:** ${message.attribution.selectedSOP.sopId} - ${message.attribution.selectedSOP.title}\n`;
           }
           markdown += `> **Confidence:** ${Math.round(message.attribution.confidence * 100)}%\n`;
           
@@ -721,7 +718,7 @@ export default function ChatInterfacePersistent() {
                           ) : (
                             <>
                               <span className="ml-2 bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
-                                {message.attribution.selectedSOP.sopId}: Phase {message.attribution.selectedSOP.phase}
+                                {message.attribution.selectedSOP.sopId}
                               </span>
                               <span className="ml-2 text-gray-500">
                                 {message.attribution.selectedSOP.title}
