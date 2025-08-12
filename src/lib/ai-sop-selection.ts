@@ -82,7 +82,7 @@ The confidence should be a number between 0 and 1, where 1 means you're complete
 
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-5-2025-08-07',
       messages: [
         { role: 'system', content: 'You are an expert PMO consultant. Your goal is to help users with project management questions. You have access to company SOPs but can also provide general PM expertise when SOPs don\'t fully address the question. Always respond with valid JSON only.' },
         { role: 'user', content: prompt }
@@ -193,7 +193,7 @@ Instructions:
 
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-5-2025-08-07',
       messages: [
         { role: 'system', content: 'You are a senior PMO consultant with deep project management expertise. Use the provided SOP as your primary source, but supplement with general PM knowledge when appropriate. Be practical and actionable. Always respond with valid JSON.' },
         { role: 'user', content: prompt }
@@ -273,7 +273,7 @@ Instructions:
 
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-5-2025-08-07',
       messages: [
         { role: 'system', content: 'You are a senior PMO consultant with deep project management expertise. Provide practical, actionable advice based on industry best practices and standards. Always respond with valid JSON.' },
         { role: 'user', content: prompt }

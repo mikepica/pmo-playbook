@@ -193,7 +193,7 @@ Summary:`;
         apiKey: process.env.OPENAI_API_KEY,
       });
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5-mini-2025-08-07',
         messages: [
           { role: 'system', content: 'You are a concise summarizer. Provide very brief 3-5 word summaries.' },
           { role: 'user', content: prompt }

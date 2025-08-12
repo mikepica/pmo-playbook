@@ -1,6 +1,18 @@
 import OpenAI from 'openai';
 import { HumanSOP } from '@/models/HumanSOP';
-import { getAIConfig, getModeConfig, getPrompt, debugLog, isFeatureEnabled } from './ai-config';
+import { 
+  getAIConfig, 
+  getModeConfig, 
+  getPrompt, 
+  debugLog, 
+  isFeatureEnabled,
+  getResponseModeConfig,
+  getDefaultResponseMode,
+  isChainOfThoughtEnabled,
+  getContextManagementConfig,
+  getFeedbackSystemConfig,
+  getSOPSelectionConfig
+} from './ai-config';
 import { AIPromptBuilder, TemplateEngine, TemplateContext } from './template-engine';
 import { 
   SOPSelectionResult, 
@@ -8,6 +20,7 @@ import {
   GeneralKnowledgeResult,
   AIModeConfig 
 } from './ai-config';
+import { chainOfThoughtProcessor, ChainOfThoughtResult } from './chain-of-thought-processor';
 
 let openai: OpenAI | null = null;
 
@@ -32,7 +45,7 @@ export async function selectBestSOPs(userQuery: string): Promise<SOPSelectionRes
   debugLog('log_sop_selection_reasoning', 'Starting multi-SOP selection', { userQuery });
 
   const config = getAIConfig();
-  const modeConfig = getModeConfig('sop_selection');
+  const sopSelectionConfig = getSOPSelectionConfig();
   
   // Get all human SOPs with enhanced context
   const humanSOPs = await HumanSOP.getAllActiveSOPs();
@@ -99,13 +112,11 @@ Use "general_knowledge" strategy if the question is better answered with general
     // Make AI call
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: modeConfig.model,
+      model: sopSelectionConfig.llm,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: modeConfig.temperature,
-      max_tokens: modeConfig.max_tokens
     });
 
     const content = response.choices[0]?.message?.content;
@@ -165,7 +176,8 @@ Use "general_knowledge" strategy if the question is better answered with general
 export async function generateMultiSOPAnswer(
   userQuery: string, 
   selection: SOPSelectionResult,
-  conversationContext?: Array<{role: 'user' | 'assistant', content: string}>
+  conversationContext?: Array<{role: 'user' | 'assistant', content: string}>,
+  responseMode: 'quick' | 'standard' | 'comprehensive' = 'standard'
 ): Promise<SOPGenerationResult> {
   try {
     debugLog('log_sop_selection_reasoning', 'Starting multi-SOP answer generation', {
@@ -178,7 +190,7 @@ export async function generateMultiSOPAnswer(
     }
 
     const config = getAIConfig();
-    const modeConfig = getModeConfig('sop_generation');
+    const modeConfig = getResponseModeConfig(responseMode);
     
     // Retrieve full human SOP content for selected SOPs
     const sopIds = selection.selectedSops.map(s => s.sopId);
@@ -244,8 +256,17 @@ export async function generateMultiSOPAnswer(
 
     // Make AI call
     const client = getOpenAIClient();
+    
+    if (!modeConfig.llm) {
+      throw new Error(`No LLM specified for ${responseMode} mode. Chain-of-thought modes should use individual stage models.`);
+    }
+    
+    if (modeConfig.temperature === undefined) {
+      throw new Error(`No temperature specified for ${responseMode} mode. Chain-of-thought modes should use individual stage temperatures.`);
+    }
+    
     const response = await client.chat.completions.create({
-      model: modeConfig.model,
+      model: modeConfig.llm,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -296,12 +317,13 @@ export async function generateMultiSOPAnswer(
  */
 export async function generateGeneralAnswer(
   userQuery: string,
-  conversationContext?: Array<{role: 'user' | 'assistant', content: string}>
+  conversationContext?: Array<{role: 'user' | 'assistant', content: string}>,
+  responseMode: 'quick' | 'standard' | 'comprehensive' = 'standard'
 ): Promise<GeneralKnowledgeResult> {
   try {
     debugLog('log_sop_selection_reasoning', 'Starting general knowledge answer generation', { userQuery });
 
-    const modeConfig = getModeConfig('general_knowledge');
+    const modeConfig = getResponseModeConfig(responseMode);
     
     // Build the prompt
     const systemPrompt = getPrompt('general_knowledge_system');
@@ -320,8 +342,17 @@ export async function generateGeneralAnswer(
 
     // Make AI call
     const client = getOpenAIClient();
+    
+    if (!modeConfig.llm) {
+      throw new Error(`No LLM specified for ${responseMode} mode. Chain-of-thought modes should use individual stage models.`);
+    }
+    
+    if (modeConfig.temperature === undefined) {
+      throw new Error(`No temperature specified for ${responseMode} mode. Chain-of-thought modes should use individual stage temperatures.`);
+    }
+    
     const response = await client.chat.completions.create({
-      model: modeConfig.model,
+      model: modeConfig.llm,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -469,7 +500,7 @@ export async function generateAnswer(
   };
 }> {
   if (selectedSopId === 'GENERAL_PM_KNOWLEDGE') {
-    const result = await generateGeneralAnswer(userQuery, conversationContext);
+    const result = await generateGeneralAnswer(userQuery, conversationContext, 'standard');
     return {
       answer: result.answer,
       sourceInfo: {
@@ -498,5 +529,224 @@ export async function generateAnswer(
       sopId: selectedSopId,
       title: sop?.data.title || 'Unknown SOP'
     }
+  };
+}
+
+// ============================================================================
+// NEW ENHANCED FUNCTIONS FOR RESPONSE MODES AND CHAIN-OF-THOUGHT
+// ============================================================================
+
+/**
+ * Enhanced query processing with response modes and chain-of-thought
+ */
+export async function processQueryWithMode(
+  userQuery: string,
+  responseMode: 'quick' | 'standard' | 'comprehensive' = 'standard',
+  conversationHistory?: Array<{role: 'user' | 'assistant', content: string}>,
+  forceChainOfThought: boolean = false
+): Promise<{
+  answer: string;
+  confidence: number;
+  responseMode: string;
+  usedChainOfThought: boolean;
+  sopSources: string[];
+  reasoning?: ChainOfThoughtResult;
+}> {
+  debugLog('log_response_modes', 'Processing query with response mode', {
+    query: userQuery,
+    mode: responseMode,
+    forceChainOfThought
+  });
+
+  const modeConfig = getResponseModeConfig(responseMode);
+  const shouldUseChainOfThought = forceChainOfThought || 
+    (modeConfig.chain_of_thought && isChainOfThoughtEnabled(responseMode));
+
+  // Use chain-of-thought processing for comprehensive mode or when forced
+  if (shouldUseChainOfThought) {
+    debugLog('log_chain_of_thought_steps', 'Using chain-of-thought processing');
+    
+    const cotResult = await chainOfThoughtProcessor.processQuery(
+      userQuery,
+      responseMode,
+      conversationHistory
+    );
+
+    return {
+      answer: cotResult.final_answer,
+      confidence: cotResult.confidence_score,
+      responseMode,
+      usedChainOfThought: true,
+      sopSources: cotResult.sop_sources,
+      reasoning: cotResult
+    };
+  }
+
+  // Use standard processing for quick and standard modes
+  debugLog('log_response_modes', 'Using standard processing');
+
+  const sopSelection = await selectBestSOPs(userQuery);
+  let answer: string;
+  let sopSources: string[] = [];
+
+  if (sopSelection.strategy === 'general_knowledge') {
+    const generalResult = await generateGeneralAnswer(userQuery, conversationHistory, responseMode);
+    answer = generalResult.answer;
+    sopSources = ['GENERAL_PM_KNOWLEDGE'];
+  } else {
+    // Use all selected SOPs (no artificial limits)
+    const multiResult = await generateMultiSOPAnswer(userQuery, sopSelection, conversationHistory, responseMode);
+    answer = multiResult.answer;
+    sopSources = sopSelection.selectedSops.map(s => s.sopId);
+
+    // Truncate answer if needed for quick mode
+    if (responseMode === 'quick' && modeConfig.max_response_words) {
+      const words = answer.split(/\s+/);
+      if (words.length > modeConfig.max_response_words) {
+        answer = words.slice(0, modeConfig.max_response_words).join(' ') + '...';
+      }
+    }
+  }
+
+  return {
+    answer,
+    confidence: sopSelection.overallConfidence,
+    responseMode,
+    usedChainOfThought: false,
+    sopSources
+  };
+}
+
+/**
+ * Process query with automatic comprehensive mode trigger based on confidence
+ */
+export async function processQueryWithAutoEscalation(
+  userQuery: string,
+  conversationHistory?: Array<{role: 'user' | 'assistant', content: string}>,
+  requestedMode: 'quick' | 'standard' | 'comprehensive' = 'standard'
+): Promise<{
+  answer: string;
+  confidence: number;
+  finalMode: string;
+  escalated: boolean;
+  sopSources: string[];
+  reasoning?: ChainOfThoughtResult;
+}> {
+  const feedbackConfig = getFeedbackSystemConfig();
+  
+  // Try with requested mode first
+  let result = await processQueryWithMode(userQuery, requestedMode, conversationHistory);
+
+  // Check if we should auto-escalate to comprehensive mode
+  const shouldEscalate = 
+    requestedMode !== 'comprehensive' &&
+    feedbackConfig.auto_suggest_comprehensive &&
+    result.confidence < feedbackConfig.confidence_thresholds.low;
+
+  if (shouldEscalate) {
+    debugLog('log_response_modes', 'Auto-escalating to comprehensive mode', {
+      originalConfidence: result.confidence,
+      threshold: feedbackConfig.confidence_thresholds.low
+    });
+
+    const comprehensiveResult = await processQueryWithMode(
+      userQuery, 
+      'comprehensive', 
+      conversationHistory, 
+      true // Force chain-of-thought
+    );
+
+    return {
+      answer: comprehensiveResult.answer,
+      confidence: comprehensiveResult.confidence,
+      finalMode: 'comprehensive',
+      escalated: true,
+      sopSources: comprehensiveResult.sopSources,
+      reasoning: comprehensiveResult.reasoning
+    };
+  }
+
+  return {
+    answer: result.answer,
+    confidence: result.confidence,
+    finalMode: requestedMode,
+    escalated: false,
+    sopSources: result.sopSources,
+    reasoning: result.reasoning
+  };
+}
+
+/**
+ * Handle context overflow with progressive summarization
+ */
+export async function handleContextOverflow(
+  userQuery: string,
+  conversationHistory: Array<{role: 'user' | 'assistant', content: string}>,
+  responseMode: 'quick' | 'standard' | 'comprehensive' = 'standard'
+): Promise<{
+  answer: string;
+  confidence: number;
+  contextManaged: boolean;
+  summaryGenerated: boolean;
+}> {
+  const contextConfig = getContextManagementConfig();
+  
+  // Calculate approximate token count (rough estimate: 4 chars per token)
+  const estimateTokens = (text: string) => Math.ceil(text.length / 4);
+  
+  const historyTokens = conversationHistory.reduce(
+    (sum, msg) => sum + estimateTokens(msg.content), 0
+  );
+  const queryTokens = estimateTokens(userQuery);
+  
+  debugLog('log_context_usage', 'Checking context limits', {
+    historyTokens,
+    queryTokens,
+    softLimit: contextConfig.token_limits.soft_limit,
+    hardLimit: contextConfig.token_limits.hard_limit
+  });
+
+  let managedHistory = conversationHistory;
+  let summaryGenerated = false;
+
+  // Check if we're approaching limits
+  if (historyTokens + queryTokens > contextConfig.token_limits.soft_limit) {
+    debugLog('log_context_usage', 'Context limit approached, managing history');
+    
+    // Keep most recent messages and summarize older ones
+    const maxRecentMessages = contextConfig.conversation_history.max_messages;
+    const recentHistory = conversationHistory.slice(-maxRecentMessages);
+    const olderHistory = conversationHistory.slice(0, -maxRecentMessages);
+
+    if (olderHistory.length > 0 && contextConfig.conversation_history.summarize_older) {
+      try {
+        const summary = await chainOfThoughtProcessor.summarizeConversationHistory(olderHistory, responseMode);
+        managedHistory = [
+          { role: 'assistant', content: `Previous conversation summary: ${summary}` },
+          ...recentHistory
+        ];
+        summaryGenerated = true;
+        
+        debugLog('log_context_usage', 'Generated conversation summary', {
+          originalMessages: olderHistory.length,
+          summaryLength: summary.length
+        });
+      } catch (error) {
+        console.warn('Failed to summarize conversation history:', error);
+        managedHistory = recentHistory; // Fallback to truncation
+      }
+    } else {
+      managedHistory = recentHistory;
+    }
+  }
+
+  // Process with managed context
+  const result = await processQueryWithMode(userQuery, responseMode, managedHistory);
+
+  return {
+    answer: result.answer,
+    confidence: result.confidence,
+    contextManaged: managedHistory.length < conversationHistory.length,
+    summaryGenerated
   };
 }

@@ -3,10 +3,87 @@ import path from 'path';
 import yaml from 'js-yaml';
 
 // Type definitions for the configuration
-export interface AIModelConfig {
-  primary: string;
-  summarization: string;
-  fallback: string;
+
+export interface RefinementConfig {
+  enabled: boolean;
+  max_iterations: number;
+  refinement_steps: string[];
+  confidence_threshold: number;
+  improvement_threshold: number;
+  timeout_per_iteration_ms: number;
+}
+
+export interface ResponseModeConfig {
+  name: string;
+  description: string;
+  llm?: string;  // Optional - only required for non-chain-of-thought modes
+  max_response_words: number;
+  temperature?: number;  // Optional - only required for non-chain-of-thought modes
+  chain_of_thought: boolean;
+  reasoning_steps?: string[];
+  refinement?: RefinementConfig;
+}
+
+export interface ChainOfThoughtStage {
+  description: string;
+  llm: string;
+  temperature: number;
+}
+
+export interface ChainOfThoughtConfig {
+  enabled: boolean;
+  stages: {
+    analyze_query: ChainOfThoughtStage;
+    research_sops: ChainOfThoughtStage;
+    synthesize_answer: ChainOfThoughtStage;
+    validate_response: ChainOfThoughtStage;
+  };
+}
+
+export interface SOPDirectoryConfig {
+  auto_generate: boolean;
+  directory_file: string;
+  include_topics: boolean;
+  include_relationships: boolean;
+  include_summaries: boolean;
+  include_keywords: boolean;
+  editable_in_admin: boolean;
+  update_on_sop_create: boolean;
+  update_on_sop_edit: boolean;
+  update_on_sop_delete: boolean;
+}
+
+export interface ContextManagementConfig {
+  conversation_history: {
+    max_messages: number;
+    summarize_older: boolean;
+    summary_max_words: number;
+  };
+  token_limits: {
+    soft_limit: number;
+    hard_limit: number;
+    warning_threshold: number;
+  };
+  overflow_strategy: {
+    method: string;
+    priority_order: string[];
+  };
+  progressive_expansion: {
+    enabled: boolean;
+    initial_sops: number;
+    max_expansion_sops: number;
+    expansion_threshold: number;
+  };
+}
+
+export interface FeedbackSystemConfig {
+  auto_comprehensive_on_thumbs_down: boolean;
+  confidence_thresholds: {
+    high: number;
+    medium: number;
+    low: number;
+  };
+  auto_suggest_comprehensive: boolean;
 }
 
 export interface MultiSOPConfig {
@@ -117,23 +194,44 @@ export interface GeneralKnowledgeResult {
   bestPractices: string[];
 }
 
-export interface AIConfig {
-  models: AIModelConfig;
+export interface SOPSelectionConfig {
+  llm: string;
+  selection_method: string;
+  min_confidence: number;
+  prefer_recent_sops: boolean;
   multi_sop: MultiSOPConfig;
-  modes: {
+}
+
+export interface AIConfig {
+  response_modes: {
+    quick: ResponseModeConfig;
+    standard: ResponseModeConfig;
+    comprehensive: ResponseModeConfig;
+  };
+  default_response_mode: string;
+  chain_of_thought: ChainOfThoughtConfig;
+  sop_directory: SOPDirectoryConfig;
+  context_management: ContextManagementConfig;
+  feedback_system: FeedbackSystemConfig;
+  sop_selection: SOPSelectionConfig;
+  prompts: Record<string, string>;
+  features: FeatureFlags;
+  debug: DebugConfig;
+  environments?: Record<string, Partial<AIConfig>>;
+  
+  // Legacy support - these will be deprecated
+  models?: any; // For backward compatibility
+  multi_sop?: MultiSOPConfig;
+  modes?: {
     sop_selection: AIModeConfig;
     sop_generation: AIModeConfig;
     general_knowledge: AIModeConfig;
     session_summary: AIModeConfig;
   };
-  flow: FlowConfig;
-  content: ContentConfig;
+  flow?: FlowConfig;
+  content?: ContentConfig;
   semantic_analysis?: SemanticAnalysisConfig;
-  prompts: Record<string, string>;
-  environments?: Record<string, Partial<AIConfig>>;
-  features: FeatureFlags;
-  validation: ValidationConfig;
-  debug: DebugConfig;
+  validation?: ValidationConfig;
 }
 
 class AIConfigManager {
@@ -250,40 +348,64 @@ class AIConfigManager {
    * Validate the configuration structure and values
    */
   private validateConfig(config: AIConfig): void {
-    // Required sections
-    const requiredSections = ['models', 'modes', 'flow', 'prompts'];
+    // Required sections for new configuration structure
+    const requiredSections = ['response_modes', 'prompts'];
     for (const section of requiredSections) {
       if (!config[section as keyof AIConfig]) {
         throw new Error(`Missing required configuration section: ${section}`);
       }
     }
 
-    // Required modes
-    const requiredModes = ['sop_selection', 'sop_generation', 'general_knowledge', 'session_summary'];
-    for (const mode of requiredModes) {
-      if (!config.modes[mode as keyof typeof config.modes]) {
-        throw new Error(`Missing required mode configuration: ${mode}`);
+    // Required response modes
+    const requiredResponseModes = ['quick', 'standard', 'comprehensive'];
+    for (const mode of requiredResponseModes) {
+      if (!config.response_modes?.[mode as keyof typeof config.response_modes]) {
+        throw new Error(`Missing required response mode configuration: ${mode}`);
       }
     }
 
-    // Validate temperature ranges
-    for (const [modeName, modeConfig] of Object.entries(config.modes)) {
-      if (modeConfig.temperature < 0 || modeConfig.temperature > 2) {
-        throw new Error(`Invalid temperature for ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
-      }
-      if (modeConfig.max_tokens < 1 || modeConfig.max_tokens > 4000) {
-        throw new Error(`Invalid max_tokens for ${modeName}: ${modeConfig.max_tokens} (must be 1-4000)`);
+    // Validate temperature ranges for response modes
+    if (config.response_modes) {
+      for (const [modeName, modeConfig] of Object.entries(config.response_modes)) {
+        if (modeConfig.temperature !== undefined && (modeConfig.temperature < 0 || modeConfig.temperature > 2)) {
+          throw new Error(`Invalid temperature for ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
+        }
       }
     }
 
-    // Validate confidence thresholds
-    if (config.flow.confidence_threshold < 0 || config.flow.confidence_threshold > 1) {
-      throw new Error(`Invalid confidence_threshold: ${config.flow.confidence_threshold} (must be 0-1)`);
+    // Validate legacy modes if they exist (for backward compatibility)
+    if (config.modes) {
+      for (const [modeName, modeConfig] of Object.entries(config.modes)) {
+        if (modeConfig.temperature !== undefined && (modeConfig.temperature < 0 || modeConfig.temperature > 2)) {
+          throw new Error(`Invalid temperature for ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
+        }
+        if (modeConfig.max_tokens < 1 || modeConfig.max_tokens > 4000) {
+          throw new Error(`Invalid max_tokens for ${modeName}: ${modeConfig.max_tokens} (must be 1-4000)`);
+        }
+      }
     }
 
-    // Validate multi-SOP settings
-    if (config.multi_sop.max_sops_per_query < 1 || config.multi_sop.max_sops_per_query > 5) {
-      throw new Error(`Invalid max_sops_per_query: ${config.multi_sop.max_sops_per_query} (must be 1-5)`);
+    // Validate temperature ranges for response modes (skip validation for modes without temperature)
+    if (config.response_modes) {
+      for (const [modeName, modeConfig] of Object.entries(config.response_modes)) {
+        if (modeConfig.temperature !== undefined && (modeConfig.temperature < 0 || modeConfig.temperature > 2)) {
+          throw new Error(`Invalid temperature for response mode ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
+        }
+      }
+    }
+
+    // Validate legacy flow settings if they exist
+    if (config.flow?.confidence_threshold !== undefined) {
+      if (config.flow.confidence_threshold < 0 || config.flow.confidence_threshold > 1) {
+        throw new Error(`Invalid confidence_threshold: ${config.flow.confidence_threshold} (must be 0-1)`);
+      }
+    }
+
+    // Validate legacy multi-SOP settings if they exist
+    if (config.multi_sop?.max_sops_per_query !== undefined) {
+      if (config.multi_sop.max_sops_per_query < 1 || config.multi_sop.max_sops_per_query > 5) {
+        throw new Error(`Invalid max_sops_per_query: ${config.multi_sop.max_sops_per_query} (must be 1-5)`);
+      }
     }
   }
 
@@ -304,6 +426,9 @@ class AIConfigManager {
    */
   public getModeConfig(modeName: string): AIModeConfig {
     const config = this.getConfig();
+    if (!config.modes) {
+      throw new Error(`Legacy modes configuration not available. Use response modes instead.`);
+    }
     const modeConfig = config.modes[modeName as keyof typeof config.modes];
     if (!modeConfig) {
       throw new Error(`Mode configuration not found: ${modeName}`);
@@ -352,9 +477,19 @@ class AIConfigManager {
    */
   public getTokenLimits(): { max_context: number; max_total: number } {
     const config = this.getConfig();
+    
+    // Use new context management if available, fallback to legacy
+    if (config.context_management?.token_limits) {
+      return {
+        max_context: config.context_management.token_limits.soft_limit,
+        max_total: config.context_management.token_limits.hard_limit
+      };
+    }
+    
+    // Fallback to legacy configuration if available
     return {
-      max_context: config.flow.max_context_tokens,
-      max_total: config.validation.max_total_tokens
+      max_context: config.flow?.max_context_tokens || 6000,
+      max_total: config.validation?.max_total_tokens || 8000
     };
   }
 
@@ -375,6 +510,102 @@ class AIConfigManager {
       console.log(`🔍 [AI-${category.toUpperCase()}] ${message}`, data || '');
     }
   }
+
+  /**
+   * Get response mode configuration
+   */
+  public getResponseModeConfig(mode: 'quick' | 'standard' | 'comprehensive'): ResponseModeConfig {
+    const config = this.getConfig();
+    const modeConfig = config.response_modes?.[mode];
+    if (!modeConfig) {
+      throw new Error(`Response mode not found: ${mode}`);
+    }
+    return modeConfig;
+  }
+
+  /**
+   * Get chain-of-thought configuration
+   */
+  public getChainOfThoughtConfig(): ChainOfThoughtConfig {
+    const config = this.getConfig();
+    if (!config.chain_of_thought) {
+      throw new Error('Chain of thought configuration not found');
+    }
+    return config.chain_of_thought;
+  }
+
+  /**
+   * Get SOP directory configuration
+   */
+  public getSOPDirectoryConfig(): SOPDirectoryConfig {
+    const config = this.getConfig();
+    if (!config.sop_directory) {
+      throw new Error('SOP directory configuration not found');
+    }
+    return config.sop_directory;
+  }
+
+  /**
+   * Get context management configuration
+   */
+  public getContextManagementConfig(): ContextManagementConfig {
+    const config = this.getConfig();
+    if (!config.context_management) {
+      throw new Error('Context management configuration not found');
+    }
+    return config.context_management;
+  }
+
+  /**
+   * Get feedback system configuration
+   */
+  public getFeedbackSystemConfig(): FeedbackSystemConfig {
+    const config = this.getConfig();
+    if (!config.feedback_system) {
+      throw new Error('Feedback system configuration not found');
+    }
+    return config.feedback_system;
+  }
+
+
+  /**
+   * Get SOP selection configuration
+   */
+  public getSOPSelectionConfig(): SOPSelectionConfig {
+    const config = this.getConfig();
+    if (!config.sop_selection) {
+      throw new Error('SOP selection configuration not found');
+    }
+    return config.sop_selection;
+  }
+
+  /**
+   * Get default response mode
+   */
+  public getDefaultResponseMode(): 'quick' | 'standard' | 'comprehensive' {
+    const config = this.getConfig();
+    const defaultMode = config.default_response_mode || 'standard';
+    if (!['quick', 'standard', 'comprehensive'].includes(defaultMode)) {
+      console.warn(`Invalid default response mode: ${defaultMode}, falling back to standard`);
+      return 'standard';
+    }
+    return defaultMode as 'quick' | 'standard' | 'comprehensive';
+  }
+
+  /**
+   * Check if chain of thought is enabled for a response mode
+   */
+  public isChainOfThoughtEnabled(mode?: 'quick' | 'standard' | 'comprehensive'): boolean {
+    const config = this.getConfig();
+    if (!config.chain_of_thought?.enabled) return false;
+    
+    if (mode) {
+      const modeConfig = this.getResponseModeConfig(mode);
+      return modeConfig.chain_of_thought;
+    }
+    
+    return true;
+  }
 }
 
 // Export singleton instance
@@ -387,3 +618,15 @@ export const getModeConfig = (mode: string) => aiConfig.getModeConfig(mode);
 export const isFeatureEnabled = (feature: keyof FeatureFlags) => aiConfig.isFeatureEnabled(feature);
 export const debugLog = (category: keyof DebugConfig, message: string, data?: any) => 
   aiConfig.debugLog(category, message, data);
+
+// New convenience functions for updated configuration
+export const getResponseModeConfig = (mode: 'quick' | 'standard' | 'comprehensive') => 
+  aiConfig.getResponseModeConfig(mode);
+export const getChainOfThoughtConfig = () => aiConfig.getChainOfThoughtConfig();
+export const getSOPDirectoryConfig = () => aiConfig.getSOPDirectoryConfig();
+export const getContextManagementConfig = () => aiConfig.getContextManagementConfig();
+export const getFeedbackSystemConfig = () => aiConfig.getFeedbackSystemConfig();
+export const getSOPSelectionConfig = () => aiConfig.getSOPSelectionConfig();
+export const getDefaultResponseMode = () => aiConfig.getDefaultResponseMode();
+export const isChainOfThoughtEnabled = (mode?: 'quick' | 'standard' | 'comprehensive') => 
+  aiConfig.isChainOfThoughtEnabled(mode);

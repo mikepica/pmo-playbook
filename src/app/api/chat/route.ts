@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
-import { selectBestSOPs, generateMultiSOPAnswer, generateGeneralAnswer } from '@/lib/ai-sop-selection-v2';
-import { getAIConfig, debugLog, isFeatureEnabled } from '@/lib/ai-config';
+import { 
+  selectBestSOPs, 
+  generateMultiSOPAnswer, 
+  generateGeneralAnswer,
+  processQueryWithMode,
+  processQueryWithAutoEscalation,
+  handleContextOverflow
+} from '@/lib/ai-sop-selection-v2';
+import { 
+  getAIConfig, 
+  debugLog, 
+  isFeatureEnabled,
+  getDefaultResponseMode,
+  isChainOfThoughtEnabled
+} from '@/lib/ai-config';
 import { ChatHistory } from '@/models/ChatHistory';
 
 export async function POST(request: Request) {
   try {
-    const { message, sessionId } = await request.json();
+    const { message, sessionId, responseMode, forceComprehensive } = await request.json();
 
     if (!message || !message.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -23,21 +36,14 @@ export async function POST(request: Request) {
     // Load AI configuration
     const aiConfig = getAIConfig();
     
-    // Step A: Multi-SOP Selection - AI selects the most relevant SOPs
-    debugLog('log_sop_selection_reasoning', 'Starting SOP selection for query', { message, sessionId: currentSessionId });
-    const sopSelection = await selectBestSOPs(message);
-    debugLog('log_sop_selection_reasoning', 'SOP selection completed', sopSelection);
-
     // Get conversation context from existing chat history
     let conversationContext: Array<{role: 'user' | 'assistant', content: string}> = [];
     try {
       const existingChat = await ChatHistory.findBySessionId(currentSessionId);
       if (existingChat && existingChat.data.messages.length > 0) {
-        // Get last few messages for context (excluding current message)
-        const historyLimit = aiConfig.flow.conversation_history_limit;
+        // Get all messages for context management
         conversationContext = existingChat.data.messages
           .filter(msg => msg.role !== 'system')
-          .slice(-historyLimit)
           .map(msg => ({
             role: msg.role as 'user' | 'assistant',
             content: msg.content
@@ -48,40 +54,44 @@ export async function POST(request: Request) {
       // Continue without context
     }
 
-    // Step B: Answer Generation - Use multi-SOP or general knowledge
-    let answerResult;
-    let selectedSopIds: string[] = [];
+    // Determine response mode
+    const requestedMode = responseMode || getDefaultResponseMode();
+    const useComprehensive = forceComprehensive || requestedMode === 'comprehensive';
     
-    if (sopSelection.strategy === 'general_knowledge') {
-      debugLog('log_sop_selection_reasoning', 'Using general PM knowledge for answer generation');
-      const generalResult = await generateGeneralAnswer(message, conversationContext);
-      answerResult = {
-        answer: generalResult.answer,
-        sourceInfo: {
-          sopId: 'GENERAL_PM_KNOWLEDGE',
-          title: 'General PM Expertise'
-        }
-      };
-      selectedSopIds = ['GENERAL_PM_KNOWLEDGE'];
+    debugLog('log_response_modes', 'Processing query with enhanced system', { 
+      message, 
+      sessionId: currentSessionId,
+      requestedMode,
+      forceComprehensive
+    });
+
+    // Use enhanced processing with context overflow handling
+    let result;
+    if (conversationContext.length > 0) {
+      // Handle potential context overflow
+      result = await handleContextOverflow(message, conversationContext, requestedMode);
     } else {
-      debugLog('log_sop_selection_reasoning', 'Using multi-SOP answer generation', {
-        sopCount: sopSelection.selectedSops.length,
-        sopIds: sopSelection.selectedSops.map(s => s.sopId)
-      });
-      const multiResult = await generateMultiSOPAnswer(message, sopSelection, conversationContext);
-      answerResult = {
-        answer: multiResult.answer,
-        sourceInfo: {
-          sopId: sopSelection.selectedSops[0]?.sopId || 'UNKNOWN',
-          title: multiResult.sopSources[0]?.sopId || 'Multiple SOPs'
-        }
-      };
-      selectedSopIds = sopSelection.selectedSops.map(s => s.sopId);
+      // New conversation - use standard processing
+      if (useComprehensive) {
+        result = await processQueryWithMode(message, 'comprehensive', conversationContext, true);
+      } else {
+        result = await processQueryWithAutoEscalation(message, conversationContext, requestedMode);
+      }
     }
+
+    const answerResult = {
+      answer: result.answer,
+      confidence: result.confidence,
+      responseMode: useComprehensive ? 'comprehensive' : requestedMode,
+      usedChainOfThought: result.reasoning ? true : false,
+      sopSources: result.sopSources || [],
+      reasoning: result.reasoning
+    };
     
-    debugLog('log_token_usage', 'Answer generation completed', {
+    debugLog('log_token_usage', 'Enhanced answer generation completed', {
       answerLength: answerResult.answer.length,
-      sopCount: selectedSopIds.length
+      sopCount: answerResult.sopSources.length,
+      usedChainOfThought: answerResult.usedChainOfThought
     });
 
     // Save or update chat history
@@ -95,12 +105,12 @@ export async function POST(request: Request) {
           content: message
         });
         
-        // Add assistant message with multi-SOP support
+        // Add assistant message with enhanced support
         await ChatHistory.addMessage(currentSessionId, {
           role: 'assistant',
           content: answerResult.answer,
-          selectedSopId: selectedSopIds.length === 1 ? selectedSopIds[0] : selectedSopIds.join(','),
-          confidence: sopSelection.overallConfidence
+          selectedSopId: answerResult.sopSources.length === 1 ? answerResult.sopSources[0] : answerResult.sopSources.join(','),
+          confidence: answerResult.confidence
         });
       } else {
         // Create new chat session
@@ -112,12 +122,12 @@ export async function POST(request: Request) {
           content: message
         });
         
-        // Add assistant message with multi-SOP support
+        // Add assistant message with enhanced support
         await ChatHistory.addMessage(currentSessionId, {
           role: 'assistant',
           content: answerResult.answer,
-          selectedSopId: selectedSopIds.length === 1 ? selectedSopIds[0] : selectedSopIds.join(','),
-          confidence: sopSelection.overallConfidence
+          selectedSopId: answerResult.sopSources.length === 1 ? answerResult.sopSources[0] : answerResult.sopSources.join(','),
+          confidence: answerResult.confidence
         });
       }
     } catch (historyError) {
@@ -128,26 +138,29 @@ export async function POST(request: Request) {
     // AI-generated proposal logic removed as part of Step 6.5: Simplify to User Feedback System
     // Only user-initiated feedback will create proposals going forward
 
-    // Return response with multi-SOP attribution
-    const primarySop = sopSelection.selectedSops.find(s => s.role === 'primary') || sopSelection.selectedSops[0];
-    
+    // Return enhanced response with full attribution
     return NextResponse.json({
       response: answerResult.answer,
       sessionId: currentSessionId,
       attribution: {
         selectedSOP: {
-          sopId: answerResult.sourceInfo.sopId,
-          title: answerResult.sourceInfo.title
+          sopId: answerResult.sopSources[0] || 'MULTIPLE',
+          title: answerResult.sopSources.length === 1 ? 'Single SOP' : 'Multiple SOPs'
         },
-        confidence: sopSelection.overallConfidence,
-        reasoning: sopSelection.reasoning,
-        // Enhanced attribution for multi-SOP
-        strategy: sopSelection.strategy,
-        sopSources: sopSelection.selectedSops.map(sop => ({
-          sopId: sop.sopId,
-          role: sop.role,
-          confidence: sop.confidence
-        }))
+        confidence: answerResult.confidence,
+        responseMode: answerResult.responseMode,
+        usedChainOfThought: answerResult.usedChainOfThought,
+        sopSources: answerResult.sopSources,
+        reasoning: answerResult.reasoning ? {
+          steps: answerResult.reasoning.reasoning_steps.length,
+          totalTokens: answerResult.reasoning.total_tokens_used,
+          duration: answerResult.reasoning.total_duration_ms,
+          refinement: answerResult.reasoning.refinement_iterations ? {
+            iterations: answerResult.reasoning.refinement_iterations.length,
+            finalImprovement: answerResult.reasoning.refinement_iterations.length > 0 ? 
+              answerResult.reasoning.refinement_iterations[answerResult.reasoning.refinement_iterations.length - 1].improvement : 0
+          } : undefined
+        } : undefined
       }
     });
 

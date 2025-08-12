@@ -45,7 +45,17 @@ export class HumanSOPModel extends PostgresModel {
       version: 1,
       is_active: true
     });
-    return this.mapToRecord(result);
+    
+    const record = this.mapToRecord(result);
+    
+    // TODO: Re-enable SOP directory update after fixing AI config issues
+    // try {
+    //   await updateSOPDirectoryOnChange('create', sopId);
+    // } catch (error) {
+    //   console.warn('Failed to update SOP directory after create:', error);
+    // }
+    
+    return record;
   }
   
   async updateById(id: number, data: HumanSOPData, version: number): Promise<HumanSOPRecord> {
@@ -77,11 +87,38 @@ export class HumanSOPModel extends PostgresModel {
     );
     
     if (results.length > 0) {
-      return this.mapToRecord(results[0]);
+      const record = this.mapToRecord(results[0]);
+      
+      // TODO: Re-enable SOP directory update after fixing AI config issues
+      // try {
+      //   await updateSOPDirectoryOnChange('update', sopId);
+      // } catch (error) {
+      //   console.warn('Failed to update SOP directory after update:', error);
+      // }
+      
+      return record;
     }
     return null;
   }
   
+  async deleteSOP(sopId: string): Promise<boolean> {
+    const results = await super.update(
+      { sop_id: sopId },
+      { is_active: false }
+    );
+    
+    if (results.length > 0) {
+      // TODO: Re-enable SOP directory update after fixing AI config issues
+      // try {
+      //   await updateSOPDirectoryOnChange('delete', sopId);
+      // } catch (error) {
+      //   console.warn('Failed to update SOP directory after delete:', error);
+      // }
+      return true;
+    }
+    return false;
+  }
+
   async searchByTitle(searchTerm: string): Promise<HumanSOPRecord[]> {
     const query = `
       SELECT * FROM human_sops 

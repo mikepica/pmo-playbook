@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, ThumbsUp, ThumbsDown, Download } from 'lucide-react';
+import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, ThumbsUp, ThumbsDown, Download, Settings, Zap, Brain } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -46,7 +46,10 @@ export default function ChatInterfaceAI() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'helpful' | 'not_helpful'>>({});
+  const [responseMode, setResponseMode] = useState<'quick' | 'standard' | 'comprehensive'>('standard');
+  const [showResponseModeSelector, setShowResponseModeSelector] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const responseModeRef = useRef<HTMLDivElement>(null);
 
   // Initialize session and load history
   useEffect(() => {
@@ -59,6 +62,9 @@ export default function ChatInterfaceAI() {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowSessionDropdown(false);
+      }
+      if (responseModeRef.current && !responseModeRef.current.contains(event.target as Node)) {
+        setShowResponseModeSelector(false);
       }
     };
 
@@ -314,7 +320,8 @@ export default function ChatInterfaceAI() {
         },
         body: JSON.stringify({
           message,
-          sessionId
+          sessionId,
+          responseMode: responseMode
         }),
       });
 
@@ -388,9 +395,72 @@ export default function ChatInterfaceAI() {
 
       if (response.ok) {
         setMessageFeedback(prev => ({ ...prev, [messageId]: rating }));
+        
+        // If user marked as not helpful, offer comprehensive mode
+        if (rating === 'not_helpful') {
+          triggerComprehensiveMode(message.content);
+        }
       }
     } catch (error) {
       console.error('Failed to submit feedback:', error);
+    }
+  };
+
+  const triggerComprehensiveMode = async (originalQuery: string) => {
+    // Show loading state
+    setLoading(true);
+    
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: `Please provide a more comprehensive answer to: "${originalQuery}"`,
+          sessionId,
+          responseMode: 'comprehensive',
+          forceComprehensive: true
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get comprehensive response');
+      }
+
+      const assistantMessage: Message = {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: data.response,
+        timestamp: new Date(),
+        attribution: {
+          selectedSOP: data.attribution.selectedSOP,
+          confidence: data.attribution.confidence,
+          reasoning: data.attribution.reasoning ? 
+            `${data.attribution.reasoning.refinement?.iterations ? 
+              `Refined through ${data.attribution.reasoning.refinement.iterations} iterations. ` : 
+              ''}Chain-of-thought reasoning (${data.attribution.reasoning.steps} steps, ${data.attribution.reasoning.totalTokens} tokens)` :
+            "Comprehensive analysis with chain-of-thought reasoning"
+        }
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+      
+    } catch (error) {
+      console.error('Failed to get comprehensive response:', error);
+      
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: 'I apologize, but I encountered an error while trying to provide a more comprehensive response. Please try asking your question again.',
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -777,6 +847,81 @@ export default function ChatInterfaceAI() {
 
       {/* Input */}
       <div className="bg-white border-t border-gray-200 p-4">
+        {/* Response Mode Selector */}
+        <div className="mb-3 flex items-center justify-between">
+          <div className="relative" ref={responseModeRef}>
+            <button
+              type="button"
+              onClick={() => setShowResponseModeSelector(!showResponseModeSelector)}
+              className="flex items-center space-x-2 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              {responseMode === 'quick' && <Zap className="w-4 h-4 text-yellow-600" />}
+              {responseMode === 'standard' && <Settings className="w-4 h-4 text-blue-600" />}
+              {responseMode === 'comprehensive' && <Brain className="w-4 h-4 text-purple-600" />}
+              <span className="capitalize">{responseMode} Mode</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+
+            {showResponseModeSelector && (
+              <div className="absolute bottom-full mb-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-64">
+                <div className="p-2 space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => { setResponseMode('quick'); setShowResponseModeSelector(false); }}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                      responseMode === 'quick' ? 'bg-yellow-50 text-yellow-700' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Zap className="w-4 h-4 text-yellow-600" />
+                      <div>
+                        <div className="font-medium">Quick Answer</div>
+                        <div className="text-xs text-gray-500">Fast, concise responses using single most relevant SOP</div>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => { setResponseMode('standard'); setShowResponseModeSelector(false); }}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                      responseMode === 'standard' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Settings className="w-4 h-4 text-blue-600" />
+                      <div>
+                        <div className="font-medium">Standard Answer</div>
+                        <div className="text-xs text-gray-500">Balanced responses that combine multiple SOPs</div>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => { setResponseMode('comprehensive'); setShowResponseModeSelector(false); }}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                      responseMode === 'comprehensive' ? 'bg-purple-50 text-purple-700' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Brain className="w-4 h-4 text-purple-600" />
+                      <div>
+                        <div className="font-medium">Comprehensive Answer</div>
+                        <div className="text-xs text-gray-500">Detailed analysis with step-by-step reasoning</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="text-xs text-gray-500">
+            Choose response detail level
+          </div>
+        </div>
+        
         <form onSubmit={handleSubmit} className="flex space-x-2">
           <input
             type="text"
