@@ -85,7 +85,7 @@ export default function SOPManagement() {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        await response.json();
         
         // Remove the SOP from the list
         setSops(prev => prev.filter(sop => sop.sopId !== sopId));

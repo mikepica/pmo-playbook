@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       userEmail
     };
 
-    const feedback = await UserFeedback.create(feedbackId, feedbackData, sessionId);
+    const feedback = await UserFeedback.createFeedback(feedbackId, feedbackData, sessionId);
 
     return NextResponse.json({
       success: true,

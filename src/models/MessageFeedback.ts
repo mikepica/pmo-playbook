@@ -48,8 +48,8 @@ export class MessageFeedbackModel extends PostgresModel {
     return results.map(row => this.mapToRecord(row));
   }
   
-  async create(messageId: string, sessionId: string, data: MessageFeedbackData): Promise<MessageFeedbackRecord> {
-    const result = await this.create({
+  async createFeedback(messageId: string, sessionId: string, data: MessageFeedbackData): Promise<MessageFeedbackRecord> {
+    const result = await super.create({
       message_id: messageId,
       session_id: sessionId,
       data: JSON.stringify(data)

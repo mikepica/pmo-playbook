@@ -1,18 +1,13 @@
 import { NextResponse } from 'next/server';
 import { 
-  selectBestSOPs, 
-  generateMultiSOPAnswer, 
-  generateGeneralAnswer,
   processQueryWithMode,
   processQueryWithAutoEscalation,
   handleContextOverflow
 } from '@/lib/ai-sop-selection-v2';
 import { 
   getAIConfig, 
-  debugLog, 
-  isFeatureEnabled,
-  getDefaultResponseMode,
-  isChainOfThoughtEnabled
+  debugLog,
+  getDefaultResponseMode
 } from '@/lib/ai-config';
 import { ChatHistory } from '@/models/ChatHistory';
 
@@ -33,8 +28,8 @@ export async function POST(request: Request) {
     // Generate or use provided session ID
     const currentSessionId = sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Load AI configuration
-    const aiConfig = getAIConfig();
+    // Load AI configuration (for potential future use)
+    // const aiConfig = getAIConfig();
     
     // Get conversation context from existing chat history
     let conversationContext: Array<{role: 'user' | 'assistant', content: string}> = [];
@@ -83,9 +78,11 @@ export async function POST(request: Request) {
       answer: result.answer,
       confidence: result.confidence,
       responseMode: useComprehensive ? 'comprehensive' : requestedMode,
-      usedChainOfThought: result.reasoning ? true : false,
-      sopSources: result.sopSources || [],
-      reasoning: result.reasoning
+      usedChainOfThought: !!(result as any).reasoning,
+      sopSources: (result as any).sopSources || [],
+      reasoning: (result as any).reasoning || undefined,
+      contextManaged: (result as any).contextManaged || false,
+      summaryGenerated: (result as any).summaryGenerated || false
     };
     
     debugLog('log_token_usage', 'Enhanced answer generation completed', {
@@ -114,7 +111,7 @@ export async function POST(request: Request) {
         });
       } else {
         // Create new chat session
-        const newChat = await ChatHistory.createSession(currentSessionId);
+        await ChatHistory.createSession(currentSessionId);
         
         // Add user message
         await ChatHistory.addMessage(currentSessionId, {

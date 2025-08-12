@@ -74,7 +74,7 @@ export async function PUT(
     };
     
     // Update the project
-    await Project.update(existingProject.id, updatedData, existingProject.phase);
+    await Project.update({ project_id: projectId }, { data: JSON.stringify(updatedData) });
     
     // Get the updated project
     const updatedProject = await Project.findByProjectId(projectId);
@@ -118,7 +118,7 @@ export async function DELETE(
       lastModifiedBy: 'admin'
     };
     
-    await Project.update(existingProject.id, updatedData, existingProject.phase, false);
+    await Project.update({ project_id: projectId }, { data: JSON.stringify(updatedData), is_active: false });
     
     return NextResponse.json({ 
       message: 'Project deleted successfully',

@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       submittedBy
     };
     
-    const proposal = await ChangeProposal.create(proposalId, sopId, proposalData);
+    const proposal = await ChangeProposal.createProposal(proposalId, sopId, proposalData);
     
     return NextResponse.json({
       success: true,

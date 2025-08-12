@@ -142,7 +142,7 @@ Use "general_knowledge" strategy if the question is better answered with general
     
     // Fallback strategy based on configuration
     const config = getAIConfig();
-    if (config.flow.fallback_to_general) {
+    if (config.flow?.fallback_to_general) {
       return {
         strategy: 'general_knowledge',
         selectedSops: [],

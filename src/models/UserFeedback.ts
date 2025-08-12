@@ -58,8 +58,8 @@ export class UserFeedbackModel extends PostgresModel {
     return results.map(row => this.mapToRecord(row));
   }
   
-  async create(feedbackId: string, data: UserFeedbackData, sessionId?: string, status: string = 'open', priority: string = 'medium'): Promise<UserFeedbackRecord> {
-    const result = await this.create({
+  async createFeedback(feedbackId: string, data: UserFeedbackData, sessionId?: string, status: string = 'open', priority: string = 'medium'): Promise<UserFeedbackRecord> {
+    const result = await super.create({
       feedback_id: feedbackId,
       session_id: sessionId || null,
       data: JSON.stringify(data),

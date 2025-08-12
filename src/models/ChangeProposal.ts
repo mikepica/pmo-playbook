@@ -49,8 +49,8 @@ export class ChangeProposalModel extends PostgresModel {
     return results.map(row => this.mapToRecord(row));
   }
   
-  async create(proposalId: string, sopId: string, data: ChangeProposalData, status: string = 'pending', priority: string = 'medium'): Promise<ChangeProposalRecord> {
-    const result = await this.create({
+  async createProposal(proposalId: string, sopId: string, data: ChangeProposalData, status: string = 'pending', priority: string = 'medium'): Promise<ChangeProposalRecord> {
+    const result = await super.create({
       proposal_id: proposalId,
       sop_id: sopId,
       data: JSON.stringify(data),

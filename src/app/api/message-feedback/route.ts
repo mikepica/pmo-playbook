@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       timestamp: new Date()
     };
     
-    const feedback = await MessageFeedback.create(messageId, sessionId, feedbackData);
+    const feedback = await MessageFeedback.createFeedback(messageId, sessionId, feedbackData);
     
     return NextResponse.json({
       success: true,

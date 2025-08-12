@@ -18,6 +18,7 @@ export interface ResponseModeConfig {
   description: string;
   llm?: string;  // Optional - only required for non-chain-of-thought modes
   max_response_words: number;
+  max_tokens?: number;  // Optional - for OpenAI API calls
   temperature?: number;  // Optional - only required for non-chain-of-thought modes
   chain_of_thought: boolean;
   reasoning_steps?: string[];
@@ -152,6 +153,9 @@ export interface DebugConfig {
   log_confidence_scores: boolean;
   log_sop_selection_reasoning: boolean;
   save_failed_queries: boolean;
+  log_response_modes: boolean;
+  log_chain_of_thought_steps: boolean;
+  log_context_usage: boolean;
 }
 
 export interface FeatureFlags {

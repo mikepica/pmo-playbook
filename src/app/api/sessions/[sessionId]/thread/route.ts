@@ -22,7 +22,7 @@ export async function GET(
     }
 
     // Format messages for display
-    const formattedMessages = session.messages.map((message, index: number) => ({
+    const formattedMessages = session.data.messages.map((message: any, index: number) => ({
       id: message._id?.toString() || `msg-${index}`,
       role: message.role,
       content: message.content,
@@ -35,13 +35,13 @@ export async function GET(
     }));
 
     return NextResponse.json({
-      sessionId: params.sessionId,
-      sessionName: session.sessionName || 'Unnamed Session',
-      summary: session.summary,
+      sessionId: sessionId,
+      sessionName: session.data.sessionName || 'Unnamed Session',
+      summary: session.data.summary,
       messages: formattedMessages,
       startedAt: session.startedAt,
       lastActive: session.lastActive || session.updatedAt,
-      messageCount: session.messages.length
+      messageCount: session.data.messages.length
     });
 
   } catch (error: unknown) {
