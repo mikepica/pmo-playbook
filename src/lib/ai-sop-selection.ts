@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AgentSOP } from '@/models/AgentSOP';
+import { HumanSOP } from '@/models/HumanSOP';
 
 let openai: OpenAI | null = null;
 
@@ -28,7 +28,6 @@ export interface AnswerGenerationResult {
   sourceInfo: {
     sopId: string;
     title: string;
-    format?: string;
   };
 }
 
@@ -37,22 +36,27 @@ export interface AnswerGenerationResult {
  */
 export async function selectBestSOP(userQuery: string): Promise<SOPSelectionResult> {
   try {
-    // Get all SOP summaries from the database
-    const sopSummaries = await AgentSOP.getAllSummaries();
+    // Get all human SOPs from the database
+    const humanSOPs = await HumanSOP.getAllActiveSOPs();
     
-    if (sopSummaries.length === 0) {
+    if (humanSOPs.length === 0) {
       throw new Error('No SOPs available in database');
     }
 
-    // Format SOPs for AI analysis with enhanced context
-    const sopList = sopSummaries.map(sop => 
-      `- sopId: ${sop.sopId}
-   title: "${sop.title}" 
-   summary: "${sop.summary}"
-   key_activities: "${sop.keyActivities?.slice(0, 3).join(', ') || 'N/A'}"
-   deliverables: "${sop.deliverables?.slice(0, 3).join(', ') || 'N/A'}"
-   keywords: "${sop.keywords?.join(', ') || 'N/A'}"`
-    ).join('\n\n');
+    // Format SOPs for AI analysis - use title and content excerpt
+    const sopList = humanSOPs.map(sop => {
+      // Extract first 200 characters of content for context
+      const contentExcerpt = sop.data.markdownContent
+        .replace(/^#.*$/gm, '') // Remove headers
+        .replace(/\n\s*\n/g, ' ') // Collapse whitespace
+        .trim()
+        .substring(0, 200)
+        .replace(/\s+/g, ' ');
+      
+      return `- sopId: ${sop.sopId}
+   title: "${sop.data.title}" 
+   content_excerpt: "${contentExcerpt}..."`;
+    }).join('\n\n');
 
     const prompt = `You are an expert PMO assistant with extensive project management knowledge. A user has asked: "${userQuery}"
 
@@ -112,7 +116,7 @@ The confidence should be a number between 0 and 1, where 1 means you're complete
       }
 
       // Validate the selected SOP exists
-      const selectedSOP = sopSummaries.find(sop => sop.sopId === result.selectedSopId);
+      const selectedSOP = humanSOPs.find(sop => sop.sopId === result.selectedSopId);
       if (!selectedSOP) {
         throw new Error(`Selected SOP ${result.selectedSopId} not found in available SOPs`);
       }
@@ -129,10 +133,10 @@ The confidence should be a number between 0 and 1, where 1 means you're complete
     console.error('Error in selectBestSOP:', error);
     
     // Fallback: Return first SOP with low confidence
-    const sopSummaries = await AgentSOP.getAllSummaries();
-    if (sopSummaries.length > 0) {
+    const humanSOPs = await HumanSOP.getAllActiveSOPs();
+    if (humanSOPs.length > 0) {
       return {
-        selectedSopId: sopSummaries[0].sopId,
+        selectedSopId: humanSOPs[0].sopId,
         confidence: 0.1,
         reasoning: 'Fallback selection due to error in AI processing'
       };
@@ -151,14 +155,11 @@ export async function generateAnswer(
   conversationContext?: Array<{role: 'user' | 'assistant', content: string}>
 ): Promise<AnswerGenerationResult> {
   try {
-    // Get the full SOP content
-    const fullSOP = await AgentSOP.findBySopId(selectedSopId);
-    if (!fullSOP) {
+    // Get the full human SOP content
+    const humanSOP = await HumanSOP.findBySopId(selectedSopId);
+    if (!humanSOP) {
       throw new Error(`SOP ${selectedSopId} not found or not active`);
     }
-
-    // Generate AI context from the SOP
-    const sopContext = AgentSOP.generateAIContext(fullSOP);
 
     // Build conversation context if provided
     let conversationHistory = '';
@@ -172,35 +173,18 @@ export async function generateAnswer(
     const prompt = `You are a PMO assistant helping with project management questions. Use the information from the following Standard Operating Procedure to answer the user's question comprehensively and accurately.
 
 SOP Information:
-Title: ${sopContext.title}
-Phase: ${sopContext.phase}
-Summary: ${sopContext.summary}
-
-Objectives:
-${sopContext.sections.objectives.map(obj => `- ${obj}`).join('\n')}
-
-Key Activities:
-${sopContext.sections.keyActivities.map((activity, i) => `${i + 1}. ${activity}`).join('\n')}
-
-Deliverables:
-${sopContext.sections.deliverables.map(del => `- ${del}`).join('\n')}
-
-Roles & Responsibilities:
-${sopContext.sections.rolesResponsibilities.map(role => 
-  `${role.role}:\n${role.responsibilities.map(resp => `  - ${resp}`).join('\n')}`
-).join('\n\n')}
-
-Tools & Templates:
-${sopContext.sections.toolsTemplates.map(tool => `- ${tool}`).join('\n')}${conversationHistory}
+Title: ${humanSOP.data.title}
+Content:
+${humanSOP.data.markdownContent}${conversationHistory}
 
 User's Current Question: "${userQuery}"
 
 Instructions:
 1. Consider the conversation context (if any) to provide relevant follow-up responses
-2. Provide a helpful, detailed answer based on the SOP information
-3. Include specific steps, deliverables, or guidance from the SOP
-4. If relevant templates or tools are mentioned, include them in your response
-5. If the SOP doesn't fully address the question, acknowledge the limitation
+2. Provide a helpful, detailed answer based on the SOP content
+3. Extract relevant steps, processes, or guidance from the markdown content
+4. If the SOP doesn't fully address the question, supplement with general PM knowledge
+5. Be practical and actionable in your response
 6. Respond in JSON format:
 
 {
@@ -237,9 +221,8 @@ Instructions:
       return {
         answer: aiResponse.answer,
         sourceInfo: {
-          sopId: fullSOP.sopId,
-          title: fullSOP.title,
-          phase: fullSOP.phase
+          sopId: humanSOP.sopId,
+          title: humanSOP.data.title
         }
       };
     } catch {
@@ -319,8 +302,7 @@ Instructions:
         answer: aiResponse.answer,
         sourceInfo: {
           sopId: 'GENERAL_PM_KNOWLEDGE',
-          title: 'General PM Expertise',
-          phase: 0 // Indicates general knowledge, not phase-specific
+          title: 'General PM Expertise'
         }
       };
     } catch {

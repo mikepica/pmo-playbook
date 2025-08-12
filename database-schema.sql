@@ -32,19 +32,6 @@ CREATE TABLE IF NOT EXISTS human_sops (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create agent_sops table
-CREATE TABLE IF NOT EXISTS agent_sops (
-    id SERIAL PRIMARY KEY,
-    sop_id VARCHAR(50) UNIQUE NOT NULL,
-    human_sop_id INTEGER REFERENCES human_sops(id) ON DELETE SET NULL,
-    data JSONB NOT NULL,
-    searchable_content TEXT,
-    version INTEGER DEFAULT 1,
-    is_active BOOLEAN DEFAULT true,
-    last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
 
 -- Create chat_histories table
 CREATE TABLE IF NOT EXISTS chat_histories (
@@ -106,12 +93,6 @@ CREATE INDEX IF NOT EXISTS idx_human_sops_sop_id ON human_sops(sop_id);
 CREATE INDEX IF NOT EXISTS idx_human_sops_is_active ON human_sops(is_active);
 CREATE INDEX IF NOT EXISTS idx_human_sops_title ON human_sops USING GIN (to_tsvector('english', COALESCE(data->>'title', '')));
 
--- Agent SOPs indexes
-CREATE INDEX IF NOT EXISTS idx_agent_sops_sop_id ON agent_sops(sop_id);
-CREATE INDEX IF NOT EXISTS idx_agent_sops_is_active ON agent_sops(is_active);
-CREATE INDEX IF NOT EXISTS idx_agent_sops_human_sop_id ON agent_sops(human_sop_id);
-CREATE INDEX IF NOT EXISTS idx_agent_sops_searchable ON agent_sops USING GIN (to_tsvector('english', COALESCE(searchable_content, '')));
-CREATE INDEX IF NOT EXISTS idx_agent_sops_keywords ON agent_sops USING GIN ((data->'keywords')) WHERE data->'keywords' IS NOT NULL;
 
 -- Chat histories indexes
 CREATE INDEX IF NOT EXISTS idx_chat_histories_session_id ON chat_histories(session_id);
@@ -153,8 +134,6 @@ CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects
 CREATE TRIGGER update_human_sops_updated_at BEFORE UPDATE ON human_sops
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_agent_sops_updated_at BEFORE UPDATE ON agent_sops
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_chat_histories_updated_at BEFORE UPDATE ON chat_histories
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

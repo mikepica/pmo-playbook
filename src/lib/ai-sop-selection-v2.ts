@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AgentSOP } from '@/models/AgentSOP';
+import { HumanSOP } from '@/models/HumanSOP';
 import { getAIConfig, getModeConfig, getPrompt, debugLog, isFeatureEnabled } from './ai-config';
 import { AIPromptBuilder, TemplateEngine, TemplateContext } from './template-engine';
 import { 
@@ -29,32 +29,67 @@ function getOpenAIClient(): OpenAI {
  * Multi-SOP Selection - Enhanced version that can select 1-3 SOPs
  */
 export async function selectBestSOPs(userQuery: string): Promise<SOPSelectionResult> {
+  debugLog('log_sop_selection_reasoning', 'Starting multi-SOP selection', { userQuery });
+
+  const config = getAIConfig();
+  const modeConfig = getModeConfig('sop_selection');
+  
+  // Get all human SOPs with enhanced context
+  const humanSOPs = await HumanSOP.getAllActiveSOPs();
+  
+  // Convert to summary format for compatibility
+  const sopSummaries = humanSOPs.map(sop => {
+      const contentExcerpt = sop.data.markdownContent
+        .replace(/^#.*$/gm, '') // Remove headers
+        .replace(/\n\s*\n/g, ' ') // Collapse whitespace
+        .trim()
+        .substring(0, 300)
+        .replace(/\s+/g, ' ');
+      
+      return {
+        sopId: sop.sopId,
+        title: sop.data.title,
+        summary: contentExcerpt + '...',
+        keywords: [], // Human SOPs don't have extracted keywords
+        keyActivities: [], // Human SOPs don't have extracted activities
+        deliverables: [] // Human SOPs don't have extracted deliverables
+      };
+  });
+  
+  if (sopSummaries.length === 0) {
+    throw new Error('No SOPs available in database');
+  }
+
   try {
-    debugLog('log_sop_selection_reasoning', 'Starting multi-SOP selection', { userQuery });
+    // Build the prompt for SOP selection
+    const sopList = sopSummaries.map(sop => 
+      `- sopId: ${sop.sopId}\n   title: "${sop.title}"\n   summary: "${sop.summary}"`
+    ).join('\n\n');
+    
+    const systemPrompt = 'You are an expert PMO consultant. Your goal is to help users with project management questions. You have access to company SOPs but can also provide general PM expertise when SOPs don\'t fully address the question. Always respond with valid JSON only.';
+    
+    const userPrompt = `You are an expert PMO assistant with extensive project management knowledge. A user has asked: "${userQuery}"
 
-    const config = getAIConfig();
-    const modeConfig = getModeConfig('sop_selection');
-    
-    // Get all SOP summaries with enhanced context
-    const sopSummaries = await AgentSOP.getAllSummaries();
-    
-    if (sopSummaries.length === 0) {
-      throw new Error('No SOPs available in database');
-    }
+Based on the following available Standard Operating Procedures (SOPs), determine which ones are most relevant to answer the question, OR if none adequately address the question, indicate this should be answered with general PM expertise.
 
-    // Build the prompt using template engine
-    const systemPrompt = getPrompt('sop_selection_system');
-    const userPromptTemplate = getPrompt('sop_selection_user');
-    
-    const userPrompt = AIPromptBuilder.buildSOPSelectionPrompt(
-      userQuery,
-      sopSummaries,
-      userPromptTemplate,
-      {
-        flow: config.flow,
-        multi_sop: config.multi_sop
-      }
-    );
+Available SOPs:
+${sopList}
+
+Instructions:
+1. Analyze the user's question to understand their specific intent and needs
+2. Select 1-3 most relevant SOPs based on topic similarity and content
+3. If no SOP adequately covers the question (confidence < 0.6), use general knowledge strategy
+4. Respond with ONLY a JSON object in this format:
+{
+  "strategy": "multi_sop" | "general_knowledge",
+  "selectedSops": [
+    {"sopId": "SOP-XXX", "role": "primary", "confidence": 0.95, "reasoning": "explanation"}
+  ],
+  "overallConfidence": 0.85,
+  "reasoning": "Overall explanation of selection strategy"
+}
+
+Use "general_knowledge" strategy if the question is better answered with general project management expertise.`;
 
     debugLog('log_token_usage', 'SOP Selection tokens', {
       systemPrompt: systemPrompt.length,
@@ -106,7 +141,6 @@ export async function selectBestSOPs(userQuery: string): Promise<SOPSelectionRes
     }
     
     // Last resort: return first SOP with low confidence
-    const sopSummaries = await AgentSOP.getAllSummaries();
     if (sopSummaries.length > 0) {
       return {
         strategy: 'single_sop',
@@ -146,9 +180,16 @@ export async function generateMultiSOPAnswer(
     const config = getAIConfig();
     const modeConfig = getModeConfig('sop_generation');
     
-    // Retrieve full SOP content for selected SOPs
+    // Retrieve full human SOP content for selected SOPs
     const sopIds = selection.selectedSops.map(s => s.sopId);
-    const fullSOPs = await AgentSOP.findMultipleBySopIds(sopIds);
+    const fullSOPs = [];
+    
+    for (const sopId of sopIds) {
+      const humanSOP = await HumanSOP.findBySopId(sopId);
+      if (humanSOP) {
+        fullSOPs.push(humanSOP);
+      }
+    }
     
     if (fullSOPs.length === 0) {
       throw new Error('No SOPs found for selected IDs');
@@ -158,24 +199,42 @@ export async function generateMultiSOPAnswer(
     const primarySOPs = fullSOPs.filter(sop => 
       selection.selectedSops.find(s => s.sopId === sop.sopId && s.role === 'primary')
     );
-    const supportingSOPs = fullSOPs.filter(sop => 
-      selection.selectedSops.find(s => s.sopId === sop.sopId && s.role !== 'primary')
-    );
-
+    
     const primarySop = primarySOPs[0] || fullSOPs[0]; // Ensure we have a primary
-    const sopContexts = fullSOPs.map(sop => AgentSOP.generateAIContext(sop));
+    
+    // Create simplified contexts from human SOPs
+    const sopContexts = fullSOPs.map(sop => ({
+      sopId: sop.sopId,
+      title: sop.data.title,
+      content: sop.data.markdownContent
+    }));
 
     // Build the prompt
     const systemPrompt = getPrompt('sop_generation_system');
     const userPromptTemplate = getPrompt('sop_generation_user');
 
-    const userPrompt = AIPromptBuilder.buildMultiSOPPrompt(
-      userQuery,
-      sopContexts.find(ctx => ctx.sopId === primarySop.sopId)!,
-      sopContexts.filter(ctx => ctx.sopId !== primarySop.sopId),
-      conversationContext || [],
-      userPromptTemplate
-    );
+    const primaryContext = sopContexts.find(ctx => ctx.sopId === primarySop.sopId)!;
+    const supportingContexts = sopContexts.filter(ctx => ctx.sopId !== primarySop.sopId);
+    
+    // Build simplified prompt for human SOPs
+    let conversationHistory = '';
+    if (conversationContext && conversationContext.length > 0) {
+      conversationHistory = '\n\nConversation History (for context only):\n' + 
+        conversationContext.slice(-4).map(msg => 
+          `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
+        ).join('\n') + '\n';
+    }
+    
+    let userPrompt = `Primary SOP:\nTitle: ${primaryContext.title}\nContent: ${primaryContext.content}\n\n`;
+    
+    if (supportingContexts.length > 0) {
+      userPrompt += 'Supporting SOPs:\n';
+      supportingContexts.forEach(ctx => {
+        userPrompt += `\nTitle: ${ctx.title}\nContent: ${ctx.content}\n`;
+      });
+    }
+    
+    userPrompt += `${conversationHistory}\nUser Question: "${userQuery}"\n\nProvide a comprehensive answer using the SOP information above. Respond in JSON format: {"answer": "your detailed response"}`;
 
     debugLog('log_token_usage', 'Multi-SOP Generation tokens', {
       systemPrompt: systemPrompt.length,
@@ -201,7 +260,23 @@ export async function generateMultiSOPAnswer(
     }
 
     // Parse the response
-    const result = parseSOPGenerationResponse(content, fullSOPs);
+    let cleanContent = content.trim();
+    if (cleanContent.startsWith('```json')) {
+      cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    const aiResponse = JSON.parse(cleanContent);
+    
+    const result = {
+      answer: aiResponse.answer,
+      sopSources: fullSOPs.map(sop => ({
+        sopId: sop.sopId,
+        contribution: `Information from ${sop.data.title}`
+      })),
+      crossReferences: [] // No cross-references for human SOPs
+    };
 
     debugLog('log_token_usage', 'Answer generation completed', {
       answerLength: result.answer.length,
@@ -328,31 +403,6 @@ function parseSOPSelectionResponse(content: string, availableSOPs: any[]): SOPSe
 /**
  * Parse SOP generation AI response
  */
-function parseSOPGenerationResponse(content: string, usedSOPs: any[]): SOPGenerationResult {
-  try {
-    let cleanContent = content.trim();
-    
-    if (cleanContent.startsWith('```json')) {
-      cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (cleanContent.startsWith('```')) {
-      cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-    
-    const aiResponse = JSON.parse(cleanContent);
-    
-    return {
-      answer: aiResponse.answer,
-      sopSources: aiResponse.sopSources || usedSOPs.map(sop => ({
-        sopId: sop.sopId,
-        contribution: `Information from ${sop.data.title}`
-      })),
-      crossReferences: aiResponse.crossReferences || []
-    };
-
-  } catch (parseError) {
-    throw new Error(`Failed to parse SOP generation response: ${content}`);
-  }
-}
 
 /**
  * Parse general knowledge AI response
@@ -416,7 +466,6 @@ export async function generateAnswer(
   sourceInfo: {
     sopId: string;
     title: string;
-    phase: number;
   };
 }> {
   if (selectedSopId === 'GENERAL_PM_KNOWLEDGE') {
@@ -425,8 +474,7 @@ export async function generateAnswer(
       answer: result.answer,
       sourceInfo: {
         sopId: 'GENERAL_PM_KNOWLEDGE',
-        title: 'General PM Expertise',
-        phase: 0
+        title: 'General PM Expertise'
       }
     };
   }
@@ -443,13 +491,12 @@ export async function generateAnswer(
     conversationContext
   );
 
-  const sop = await AgentSOP.findBySopId(selectedSopId);
+  const sop = await HumanSOP.findBySopId(selectedSopId);
   return {
     answer: multiResult.answer,
     sourceInfo: {
       sopId: selectedSopId,
-      title: sop?.data.title || 'Unknown SOP',
-      phase: sop?.phase || 0
+      title: sop?.data.title || 'Unknown SOP'
     }
   };
 }

@@ -104,15 +104,8 @@ export default function SOPEditor({
         setHasChanges(false);
         onEditModeChange(false);
         
-        // Show regeneration feedback
-        if (data.warning) {
-          alert(`Warning: ${data.warning}\n\nErrors: ${data.regenerationErrors?.join('\n') || 'None'}\n\nWarnings: ${data.regenerationWarnings?.join('\n') || 'None'}`);
-        } else if (data.agentSOPRegenerated || data.agentSOPCreated) {
-          console.log(`SOP ${createMode ? 'created' : 'updated'} and AgentSOP processed successfully. AgentSOP version: ${data.agentSOPVersion}`);
-          if (data.regenerationWarnings?.length > 0) {
-            console.log('Regeneration warnings:', data.regenerationWarnings);
-          }
-        }
+        // SOP saved successfully
+        console.log(`SOP ${createMode ? 'created' : 'updated'} successfully.`);
       } else {
         const errorData = await response.json();
         alert(`Failed to ${createMode ? 'create' : 'save'} SOP: ${errorData.error || 'Unknown error'}`);
