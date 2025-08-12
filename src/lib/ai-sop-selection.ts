@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { HumanSOP } from '@/models/HumanSOP';
+import { getSOPSelectionConfig, getResponseModeConfig, getDefaultsConfig } from '@/lib/ai-config';
 
 let openai: OpenAI | null = null;
 
@@ -80,14 +81,15 @@ Instructions:
 Use "GENERAL_PM_KNOWLEDGE" if the question is better answered with general project management expertise rather than a specific SOP.
 The confidence should be a number between 0 and 1, where 1 means you're completely certain about your selection.`;
 
+    const sopSelectionConfig = getSOPSelectionConfig();
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: 'gpt-5-2025-08-07',
+      model: sopSelectionConfig.llm,
       messages: [
         { role: 'system', content: 'You are an expert PMO consultant. Your goal is to help users with project management questions. You have access to company SOPs but can also provide general PM expertise when SOPs don\'t fully address the question. Always respond with valid JSON only.' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.2, // Still consistent but less rigid
+      temperature: getDefaultsConfig().analytical_temperature, // Use config-driven temperature for consistency
       max_tokens: 300
     });
 
@@ -191,14 +193,16 @@ Instructions:
   "answer": "Your detailed response here"
 }`;
 
+    const modeConfig = getResponseModeConfig('standard'); // Default to standard mode
+    const defaults = getDefaultsConfig();
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: 'gpt-5-2025-08-07',
+      model: modeConfig.llm || defaults.primary_model,
       messages: [
         { role: 'system', content: 'You are a senior PMO consultant with deep project management expertise. Use the provided SOP as your primary source, but supplement with general PM knowledge when appropriate. Be practical and actionable. Always respond with valid JSON.' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.5, // More natural responses
+      temperature: modeConfig.temperature || defaults.analytical_temperature,
       max_tokens: 2000
     });
 
@@ -271,14 +275,16 @@ Instructions:
   "answer": "Your detailed response here"
 }`;
 
+    const modeConfig = getResponseModeConfig('standard'); // Default to standard mode
+    const defaults = getDefaultsConfig();
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: 'gpt-5-2025-08-07',
+      model: modeConfig.llm || defaults.primary_model,
       messages: [
         { role: 'system', content: 'You are a senior PMO consultant with deep project management expertise. Provide practical, actionable advice based on industry best practices and standards. Always respond with valid JSON.' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.6, // Higher temperature for more natural, creative responses
+      temperature: modeConfig.temperature || defaults.creative_temperature,
       max_tokens: 2000
     });
 

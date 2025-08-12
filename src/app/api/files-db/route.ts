@@ -3,7 +3,8 @@ import { HumanSOP } from '@/models/HumanSOP';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type') || 'all';
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _type = searchParams.get('type') || 'all';
   
   try {
     const sops = await HumanSOP.getAllActiveSOPs();

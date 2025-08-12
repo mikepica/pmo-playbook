@@ -206,6 +206,19 @@ export interface SOPSelectionConfig {
   multi_sop: MultiSOPConfig;
 }
 
+export interface SessionManagementConfig {
+  summary_model: string;
+  summary_temperature: number;
+  summary_max_tokens: number;
+}
+
+export interface DefaultsConfig {
+  primary_model: string;
+  lightweight_model: string;
+  creative_temperature: number;
+  analytical_temperature: number;
+}
+
 export interface AIConfig {
   response_modes: {
     quick: ResponseModeConfig;
@@ -213,11 +226,13 @@ export interface AIConfig {
     comprehensive: ResponseModeConfig;
   };
   default_response_mode: string;
+  defaults?: DefaultsConfig;
   chain_of_thought: ChainOfThoughtConfig;
   sop_directory: SOPDirectoryConfig;
   context_management: ContextManagementConfig;
   feedback_system: FeedbackSystemConfig;
   sop_selection: SOPSelectionConfig;
+  session_management?: SessionManagementConfig;
   prompts: Record<string, string>;
   features: FeatureFlags;
   debug: DebugConfig;
@@ -584,6 +599,40 @@ class AIConfigManager {
   }
 
   /**
+   * Get session management configuration
+   */
+  public getSessionManagementConfig(): SessionManagementConfig {
+    const config = this.getConfig();
+    const defaults = this.getDefaultsConfig();
+    if (!config.session_management) {
+      // Return defaults if not configured
+      return {
+        summary_model: defaults.lightweight_model,
+        summary_temperature: defaults.analytical_temperature,
+        summary_max_tokens: 20
+      };
+    }
+    return config.session_management;
+  }
+
+  /**
+   * Get defaults configuration
+   */
+  public getDefaultsConfig(): DefaultsConfig {
+    const config = this.getConfig();
+    if (!config.defaults) {
+      // Hardcoded fallbacks as last resort
+      return {
+        primary_model: 'gpt-4o',
+        lightweight_model: 'gpt-4o-mini',
+        creative_temperature: 0.6,
+        analytical_temperature: 0.3
+      };
+    }
+    return config.defaults;
+  }
+
+  /**
    * Get default response mode
    */
   public getDefaultResponseMode(): 'quick' | 'standard' | 'comprehensive' {
@@ -631,6 +680,8 @@ export const getSOPDirectoryConfig = () => aiConfig.getSOPDirectoryConfig();
 export const getContextManagementConfig = () => aiConfig.getContextManagementConfig();
 export const getFeedbackSystemConfig = () => aiConfig.getFeedbackSystemConfig();
 export const getSOPSelectionConfig = () => aiConfig.getSOPSelectionConfig();
+export const getSessionManagementConfig = () => aiConfig.getSessionManagementConfig();
+export const getDefaultsConfig = () => aiConfig.getDefaultsConfig();
 export const getDefaultResponseMode = () => aiConfig.getDefaultResponseMode();
 export const isChainOfThoughtEnabled = (mode?: 'quick' | 'standard' | 'comprehensive') => 
   aiConfig.isChainOfThoughtEnabled(mode);

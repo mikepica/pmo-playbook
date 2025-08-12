@@ -71,7 +71,8 @@ export async function POST(request: Request) {
     const projectId = data.projectId || await Project.getNextProjectId();
     
     // Remove projectId from data as it's stored separately
-    const { projectId: _, ...projectData } = data;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { projectId: _removedProjectId, ...projectData } = data;
     
     const project = await Project.createProject(projectId, projectData);
     

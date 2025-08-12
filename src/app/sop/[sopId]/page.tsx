@@ -28,6 +28,7 @@ export default function SOPPage() {
     // Validate SOP exists
     const validateSOP = async () => {
       try {
+        console.log(`Validating SOP: ${sopId}`);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
@@ -37,22 +38,35 @@ export default function SOPPage() {
         
         clearTimeout(timeoutId);
         
+        console.log(`API Response status: ${response.status}`);
+        
         if (!response.ok) {
+          console.error(`API request failed with status: ${response.status}`);
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const data = await response.json();
+        console.log('API data received:', data);
         const sopList: SOP[] = data.sops || [];
         
+        console.log(`Available SOPs: ${sopList.map(s => s.id).join(', ')}`);
+        console.log(`Looking for SOP: ${sopId}`);
+        
         const sopExists = sopList.some(sop => sop.id === sopId);
+        console.log(`SOP exists: ${sopExists}`);
         
         if (!sopExists && sopList.length > 0) {
+          console.warn(`SOP ${sopId} not found in available SOPs`);
           notFound();
         } else {
+          console.log('SOP validation successful');
           setLoading(false);
         }
       } catch (error) {
         console.error('Failed to validate SOP:', error);
+        console.log('Continuing without validation - letting other components handle SOP loading');
         // If database is unreachable, assume SOP exists and let other components handle errors
         setLoading(false);
       }

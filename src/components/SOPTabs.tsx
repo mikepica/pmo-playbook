@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, Settings } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+// import { useRouter } from 'next/navigation';
 import ProjectsDropdown from '@/components/ProjectsDropdown';
 
 interface SOP {
@@ -21,7 +21,7 @@ interface SOPTabsProps {
 export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPTabsProps) {
   const [sops, setSOPs] = useState<SOP[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  // const router = useRouter();
 
   useEffect(() => {
     const fetchSOPs = async () => {

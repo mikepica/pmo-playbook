@@ -82,7 +82,8 @@ export async function GET(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function DELETE(_request: Request) {
   try {
     return NextResponse.json(
       { message: 'Delete functionality not yet implemented in PostgreSQL version' },

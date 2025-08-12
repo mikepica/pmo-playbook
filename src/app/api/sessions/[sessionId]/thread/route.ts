@@ -22,7 +22,14 @@ export async function GET(
     }
 
     // Format messages for display
-    const formattedMessages = session.data.messages.map((message: any, index: number) => ({
+    const formattedMessages = session.data.messages.map((message: {
+      _id?: unknown;
+      role: string;
+      content: string;
+      timestamp: string;
+      selectedSopId?: string;
+      confidence?: number;
+    }, index: number) => ({
       id: message._id?.toString() || `msg-${index}`,
       role: message.role,
       content: message.content,

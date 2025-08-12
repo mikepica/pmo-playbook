@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Save, Eye, Edit, AlertCircle, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -89,7 +89,9 @@ export default function SOPEditor({
         const data = await response.json();
         
         if (createMode) {
-          onSOPCreate && onSOPCreate(data.sop);
+          if (onSOPCreate) {
+            onSOPCreate(data.sop);
+          }
         } else {
           const updatedSOP = {
             ...sop!,
@@ -122,7 +124,9 @@ export default function SOPEditor({
     if (hasChanges) {
       if (confirm('You have unsaved changes. Are you sure you want to cancel?')) {
         if (createMode) {
-          onCancel && onCancel();
+          if (onCancel) {
+          onCancel();
+        }
         } else {
           setContent(sop!.markdownContent);
           setHasChanges(false);
@@ -131,7 +135,9 @@ export default function SOPEditor({
       }
     } else {
       if (createMode) {
-        onCancel && onCancel();
+        if (onCancel) {
+          onCancel();
+        }
       } else {
         onEditModeChange(false);
       }

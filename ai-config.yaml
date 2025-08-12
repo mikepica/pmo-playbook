@@ -45,6 +45,20 @@ response_modes:
 default_response_mode: "standard"
 
 # ============================================================================
+# DEFAULT/FALLBACK MODELS - Used when specific configs are missing
+# ============================================================================
+
+defaults:
+  # Primary model for most operations
+  primary_model: "gpt-4o"
+  # Lightweight model for simple tasks
+  lightweight_model: "gpt-4o-mini" 
+  # Default temperature for creative responses
+  creative_temperature: 0.6
+  # Default temperature for analytical responses
+  analytical_temperature: 0.3
+
+# ============================================================================
 # CHAIN-OF-THOUGHT REASONING - For comprehensive responses
 # ============================================================================
 
@@ -178,6 +192,16 @@ sop_selection:
     combination_strategy: "semantic_weighted"
     handle_duplicates: "intelligent_merge"
     detect_relationships: true
+
+# ============================================================================
+# SESSION AND SUMMARY MANAGEMENT
+# ============================================================================
+
+session_management:
+  # Model for generating session summaries
+  summary_model: "gpt-4o-mini"
+  summary_temperature: 0.3
+  summary_max_tokens: 20
 
 # ============================================================================
 # SYSTEM PROMPTS - Core instructions for the AI

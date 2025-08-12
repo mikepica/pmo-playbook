@@ -1,24 +1,20 @@
 import OpenAI from 'openai';
 import { HumanSOP } from '@/models/HumanSOP';
 import { 
-  getAIConfig, 
-  getModeConfig, 
+  getAIConfig,
   getPrompt, 
   debugLog, 
-  isFeatureEnabled,
   getResponseModeConfig,
-  getDefaultResponseMode,
   isChainOfThoughtEnabled,
   getContextManagementConfig,
   getFeedbackSystemConfig,
   getSOPSelectionConfig
 } from './ai-config';
-import { AIPromptBuilder, TemplateEngine, TemplateContext } from './template-engine';
+import { AIPromptBuilder } from './template-engine';
 import { 
   SOPSelectionResult, 
   SOPGenerationResult, 
-  GeneralKnowledgeResult,
-  AIModeConfig 
+  GeneralKnowledgeResult
 } from './ai-config';
 import { chainOfThoughtProcessor, ChainOfThoughtResult } from './chain-of-thought-processor';
 
@@ -44,7 +40,7 @@ function getOpenAIClient(): OpenAI {
 export async function selectBestSOPs(userQuery: string): Promise<SOPSelectionResult> {
   debugLog('log_sop_selection_reasoning', 'Starting multi-SOP selection', { userQuery });
 
-  const config = getAIConfig();
+  // const config = getAIConfig();
   const sopSelectionConfig = getSOPSelectionConfig();
   
   // Get all human SOPs with enhanced context
@@ -189,7 +185,7 @@ export async function generateMultiSOPAnswer(
       throw new Error('Use generateGeneralAnswer for general knowledge strategy');
     }
 
-    const config = getAIConfig();
+    // const config = getAIConfig();
     const modeConfig = getResponseModeConfig(responseMode);
     
     // Retrieve full human SOP content for selected SOPs
@@ -223,7 +219,7 @@ export async function generateMultiSOPAnswer(
 
     // Build the prompt
     const systemPrompt = getPrompt('sop_generation_system');
-    const userPromptTemplate = getPrompt('sop_generation_user');
+    // const userPromptTemplate = getPrompt('sop_generation_user');
 
     const primaryContext = sopContexts.find(ctx => ctx.sopId === primarySop.sopId)!;
     const supportingContexts = sopContexts.filter(ctx => ctx.sopId !== primarySop.sopId);
@@ -385,7 +381,7 @@ export async function generateGeneralAnswer(
 /**
  * Parse SOP selection AI response
  */
-function parseSOPSelectionResponse(content: string, availableSOPs: any[]): SOPSelectionResult {
+function parseSOPSelectionResponse(content: string, availableSOPs: { sopId: string; title: string }[]): SOPSelectionResult {
   try {
     let cleanContent = content.trim();
     
@@ -635,7 +631,7 @@ export async function processQueryWithAutoEscalation(
   const feedbackConfig = getFeedbackSystemConfig();
   
   // Try with requested mode first
-  let result = await processQueryWithMode(userQuery, requestedMode, conversationHistory);
+  const result = await processQueryWithMode(userQuery, requestedMode, conversationHistory);
 
   // Check if we should auto-escalate to comprehensive mode
   const shouldEscalate = 

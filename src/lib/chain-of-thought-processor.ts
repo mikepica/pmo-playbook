@@ -5,6 +5,7 @@ import {
   getChainOfThoughtConfig, 
   getResponseModeConfig, 
   getContextManagementConfig,
+  getDefaultsConfig,
   debugLog 
 } from './ai-config';
 
@@ -495,9 +496,10 @@ Please refine this analysis to improve accuracy and completeness.`;
       ).join('\n');
 
       const modeConfig = getResponseModeConfig(responseMode);
+      const defaults = getDefaultsConfig();
       
       // For chain-of-thought modes without LLM, use a default model for summarization
-      const summaryModel = modeConfig.llm || 'gpt-5-mini-2025-08-07';
+      const summaryModel = modeConfig.llm || defaults.lightweight_model;
 
       const response = await this.client.chat.completions.create({
         model: summaryModel,
@@ -505,7 +507,7 @@ Please refine this analysis to improve accuracy and completeness.`;
           role: 'user',
           content: `Summarize this conversation history in ${maxWords} words or less, focusing on key topics and decisions:\n\n${historyText}`
         }],
-        temperature: 0.3  // Use low temperature for consistent summaries
+        temperature: defaults.analytical_temperature  // Use analytical temperature for consistent summaries
       });
 
       return response.choices[0]?.message?.content || '';

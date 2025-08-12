@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ChatHistory } from '@/models/ChatHistory';
 import OpenAI from 'openai';
+import { getSessionManagementConfig } from '@/lib/ai-config';
 
 // GET all sessions for the user (with summaries)
 export async function GET(request: Request) {
@@ -189,17 +190,18 @@ Examples of good summaries:
 Summary:`;
 
     try {
+      const sessionConfig = getSessionManagementConfig();
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
       const response = await openai.chat.completions.create({
-        model: 'gpt-5-mini-2025-08-07',
+        model: sessionConfig.summary_model,
         messages: [
           { role: 'system', content: 'You are a concise summarizer. Provide very brief 3-5 word summaries.' },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.3,
-        max_tokens: 20
+        temperature: sessionConfig.summary_temperature,
+        max_tokens: sessionConfig.summary_max_tokens
       });
 
       const summary = response.choices[0]?.message?.content?.trim() || 'Conversation';

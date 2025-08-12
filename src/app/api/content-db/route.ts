@@ -4,7 +4,8 @@ import { HumanSOP } from '@/models/HumanSOP';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sopId = searchParams.get('sopId');
-  const type = searchParams.get('type') || 'human'; // Only 'human' supported now
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _type = searchParams.get('type') || 'human'; // Only 'human' supported now
   const all = searchParams.get('all'); // Get all SOPs
   
   try {

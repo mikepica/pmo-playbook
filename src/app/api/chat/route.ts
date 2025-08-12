@@ -5,11 +5,23 @@ import {
   handleContextOverflow
 } from '@/lib/ai-sop-selection-v2';
 import { 
-  getAIConfig, 
   debugLog,
   getDefaultResponseMode
 } from '@/lib/ai-config';
 import { ChatHistory } from '@/models/ChatHistory';
+
+interface ProcessQueryResult {
+  answer: string;
+  selectedSOP: {
+    sopId: string;
+    title: string;
+  };
+  confidence: number;
+  reasoning?: unknown;
+  sopSources?: unknown[];
+  contextManaged?: boolean;
+  summaryGenerated?: boolean;
+}
 
 export async function POST(request: Request) {
   try {
@@ -74,15 +86,16 @@ export async function POST(request: Request) {
       }
     }
 
+    const typedResult = result as ProcessQueryResult;
     const answerResult = {
-      answer: result.answer,
-      confidence: result.confidence,
+      answer: typedResult.answer,
+      confidence: typedResult.confidence,
       responseMode: useComprehensive ? 'comprehensive' : requestedMode,
-      usedChainOfThought: !!(result as any).reasoning,
-      sopSources: (result as any).sopSources || [],
-      reasoning: (result as any).reasoning || undefined,
-      contextManaged: (result as any).contextManaged || false,
-      summaryGenerated: (result as any).summaryGenerated || false
+      usedChainOfThought: !!typedResult.reasoning,
+      sopSources: typedResult.sopSources || [],
+      reasoning: typedResult.reasoning || undefined,
+      contextManaged: typedResult.contextManaged || false,
+      summaryGenerated: typedResult.summaryGenerated || false
     };
     
     debugLog('log_token_usage', 'Enhanced answer generation completed', {

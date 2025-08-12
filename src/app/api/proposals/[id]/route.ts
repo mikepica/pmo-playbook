@@ -71,9 +71,12 @@ export async function PUT(
 }
 
 // DELETE proposal (placeholder - not implemented)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _request: Request,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  { params: _params }: { params: Promise<{ id: string }> }
 ) {
   try {
     return NextResponse.json(
