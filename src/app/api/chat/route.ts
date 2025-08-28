@@ -1,31 +1,11 @@
 import { NextResponse } from 'next/server';
-import { 
-  processQueryWithMode,
-  processQueryWithAutoEscalation,
-  handleContextOverflow
-} from '@/lib/ai-sop-selection-v2';
-import { 
-  debugLog,
-  getDefaultResponseMode
-} from '@/lib/ai-config';
+import { processQuery, UnifiedQueryResult } from '@/lib/unified-query-processor';
+import { debugLog } from '@/lib/ai-config';
 import { ChatHistory } from '@/models/ChatHistory';
-
-interface ProcessQueryResult {
-  answer: string;
-  selectedSOP: {
-    sopId: string;
-    title: string;
-  };
-  confidence: number;
-  reasoning?: unknown;
-  sopSources?: unknown[];
-  contextManaged?: boolean;
-  summaryGenerated?: boolean;
-}
 
 export async function POST(request: Request) {
   try {
-    const { message, sessionId, responseMode, forceComprehensive } = await request.json();
+    const { message, sessionId } = await request.json();
 
     if (!message || !message.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -35,22 +15,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
-    // Database connection handled by model
-
     // Generate or use provided session ID
     const currentSessionId = sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    // Load AI configuration (for potential future use)
-    // const aiConfig = getAIConfig();
     
     // Get conversation context from existing chat history
     let conversationContext: Array<{role: 'user' | 'assistant', content: string}> = [];
     try {
       const existingChat = await ChatHistory.findBySessionId(currentSessionId);
       if (existingChat && existingChat.data.messages.length > 0) {
-        // Get all messages for context management
+        // Get last 6 messages for context (3 exchanges)
         conversationContext = existingChat.data.messages
           .filter(msg => msg.role !== 'system')
+          .slice(-6)  // Last 6 messages for context
           .map(msg => ({
             role: msg.role as 'user' | 'assistant',
             content: msg.content
@@ -61,52 +37,61 @@ export async function POST(request: Request) {
       // Continue without context
     }
 
-    // Determine response mode
-    const requestedMode = responseMode || getDefaultResponseMode();
-    const useComprehensive = forceComprehensive || requestedMode === 'comprehensive';
-    
-    debugLog('log_response_modes', 'Processing query with enhanced system', { 
-      message, 
+    debugLog('log_xml_processing', 'Processing query with unified system', { 
+      message: message.substring(0, 100) + '...', 
       sessionId: currentSessionId,
-      requestedMode,
-      forceComprehensive
+      contextLength: conversationContext.length
     });
 
-    // Use enhanced processing with context overflow handling
-    let result;
-    if (conversationContext.length > 0) {
-      // Handle potential context overflow
-      result = await handleContextOverflow(message, conversationContext, requestedMode);
-    } else {
-      // New conversation - use standard processing
-      if (useComprehensive) {
-        result = await processQueryWithMode(message, 'comprehensive', conversationContext, true);
-      } else {
-        result = await processQueryWithAutoEscalation(message, conversationContext, requestedMode);
-      }
-    }
+    // Use unified processing pipeline
+    const result: UnifiedQueryResult = await processQuery(message, conversationContext);
 
-    const typedResult = result as ProcessQueryResult;
+    // Format response for API compatibility
     const answerResult = {
-      answer: typedResult.answer,
-      confidence: typedResult.confidence,
-      responseMode: useComprehensive ? 'comprehensive' : requestedMode,
-      usedChainOfThought: !!typedResult.reasoning,
-      sopSources: typedResult.sopSources || [],
-      reasoning: typedResult.reasoning || undefined,
-      contextManaged: typedResult.contextManaged || false,
-      summaryGenerated: typedResult.summaryGenerated || false
+      answer: result.answer,
+      confidence: result.coverageAnalysis.overallConfidence,
+      responseStrategy: result.coverageAnalysis.responseStrategy,
+      coverageLevel: result.coverageAnalysis.coverageLevel,
+      sopSources: result.sopReferences.map(ref => ({
+        sopId: ref.sopId,
+        title: ref.title,
+        confidence: ref.confidence,
+        sections: ref.sections,
+        keyPoints: ref.keyPoints
+      })),
+      processingTime: result.processingTime,
+      tokensUsed: result.tokensUsed,
+      gaps: result.coverageAnalysis.gaps,
+      queryIntent: result.coverageAnalysis.queryIntent,
+      keyTopics: result.coverageAnalysis.keyTopics,
+      
+      // Legacy fields for backward compatibility
+      selectedSOP: result.sopReferences.length > 0 ? {
+        sopId: result.sopReferences[0].sopId,
+        title: result.sopReferences[0].title
+      } : null,
+      usedChainOfThought: false,  // No longer relevant in unified system
+      reasoning: undefined,       // XML reasoning is internal
+      contextManaged: false,
+      summaryGenerated: false
     };
     
-    debugLog('log_token_usage', 'Enhanced answer generation completed', {
+    debugLog('log_xml_processing', 'Unified processing completed', {
       answerLength: answerResult.answer.length,
       sopCount: answerResult.sopSources.length,
-      usedChainOfThought: answerResult.usedChainOfThought
+      coverageLevel: answerResult.coverageLevel,
+      responseStrategy: answerResult.responseStrategy,
+      processingTime: answerResult.processingTime
     });
 
     // Save or update chat history
     try {
       const existingChat = await ChatHistory.findBySessionId(currentSessionId);
+      
+      // Prepare SOP ID for storage (handle multiple SOPs)
+      const sopIdForStorage = answerResult.sopSources.length > 0 
+        ? answerResult.sopSources.map(s => s.sopId).join(',')
+        : null;
       
       if (existingChat) {
         // Add user message
@@ -115,11 +100,11 @@ export async function POST(request: Request) {
           content: message
         });
         
-        // Add assistant message with enhanced support
+        // Add assistant message with unified system data
         await ChatHistory.addMessage(currentSessionId, {
           role: 'assistant',
           content: answerResult.answer,
-          selectedSopId: answerResult.sopSources.length === 1 ? answerResult.sopSources[0] : answerResult.sopSources.join(','),
+          selectedSopId: sopIdForStorage,
           confidence: answerResult.confidence
         });
       } else {
@@ -132,11 +117,11 @@ export async function POST(request: Request) {
           content: message
         });
         
-        // Add assistant message with enhanced support
+        // Add assistant message with unified system data
         await ChatHistory.addMessage(currentSessionId, {
           role: 'assistant',
           content: answerResult.answer,
-          selectedSopId: answerResult.sopSources.length === 1 ? answerResult.sopSources[0] : answerResult.sopSources.join(','),
+          selectedSopId: sopIdForStorage,
           confidence: answerResult.confidence
         });
       }
@@ -148,29 +133,32 @@ export async function POST(request: Request) {
     // AI-generated proposal logic removed as part of Step 6.5: Simplify to User Feedback System
     // Only user-initiated feedback will create proposals going forward
 
-    // Return enhanced response with full attribution
+    // Return unified response with attribution
     return NextResponse.json({
       response: answerResult.answer,
       sessionId: currentSessionId,
       attribution: {
-        selectedSOP: {
-          sopId: answerResult.sopSources[0] || 'MULTIPLE',
-          title: answerResult.sopSources.length === 1 ? 'Single SOP' : 'Multiple SOPs'
+        // Primary SOP for backward compatibility
+        selectedSOP: answerResult.selectedSOP || {
+          sopId: 'NONE',
+          title: 'No SOPs found'
         },
         confidence: answerResult.confidence,
-        responseMode: answerResult.responseMode,
-        usedChainOfThought: answerResult.usedChainOfThought,
+        
+        // New unified system data
+        responseStrategy: answerResult.responseStrategy,
+        coverageLevel: answerResult.coverageLevel,
         sopSources: answerResult.sopSources,
-        reasoning: answerResult.reasoning ? {
-          steps: answerResult.reasoning.reasoning_steps.length,
-          totalTokens: answerResult.reasoning.total_tokens_used,
-          duration: answerResult.reasoning.total_duration_ms,
-          refinement: answerResult.reasoning.refinement_iterations ? {
-            iterations: answerResult.reasoning.refinement_iterations.length,
-            finalImprovement: answerResult.reasoning.refinement_iterations.length > 0 ? 
-              answerResult.reasoning.refinement_iterations[answerResult.reasoning.refinement_iterations.length - 1].improvement : 0
-          } : undefined
-        } : undefined
+        gaps: answerResult.gaps,
+        queryIntent: answerResult.queryIntent,
+        keyTopics: answerResult.keyTopics,
+        processingTime: answerResult.processingTime,
+        tokensUsed: answerResult.tokensUsed,
+        
+        // Legacy compatibility fields
+        responseMode: 'unified',  // No longer relevant but kept for compatibility
+        usedChainOfThought: false,
+        reasoning: undefined
       }
     });
 

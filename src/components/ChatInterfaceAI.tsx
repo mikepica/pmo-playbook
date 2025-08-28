@@ -9,12 +9,33 @@ interface Message {
   content: string;
   timestamp: Date;
   attribution?: {
+    // Primary SOP for backward compatibility
     selectedSOP: {
       sopId: string;
       title: string;
     };
     confidence: number;
-    reasoning: string;
+    
+    // New unified system data
+    responseStrategy?: 'full_answer' | 'partial_answer' | 'escape_hatch';
+    coverageLevel?: 'high' | 'medium' | 'low';
+    sopSources?: Array<{
+      sopId: string;
+      title: string;
+      confidence: number;
+      sections: string[];
+      keyPoints: string[];
+    }>;
+    gaps?: string[];
+    queryIntent?: string;
+    keyTopics?: string[];
+    processingTime?: number;
+    tokensUsed?: number;
+    
+    // Legacy fields
+    reasoning?: string;
+    responseMode?: string;
+    usedChainOfThought?: boolean;
   };
   suggestedChange?: {
     detected: boolean;
@@ -46,7 +67,6 @@ export default function ChatInterfaceAI() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'helpful' | 'not_helpful'>>({});
-  const [responseMode] = useState<'quick' | 'standard' | 'comprehensive'>('standard');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Initialize session and load history
@@ -324,8 +344,7 @@ export default function ChatInterfaceAI() {
         },
         body: JSON.stringify({
           message,
-          sessionId,
-          responseMode: responseMode
+          sessionId
         }),
       });
 
@@ -400,9 +419,9 @@ export default function ChatInterfaceAI() {
       if (response.ok) {
         setMessageFeedback(prev => ({ ...prev, [messageId]: rating }));
         
-        // If user marked as not helpful, offer comprehensive mode
+        // If user marked as not helpful, suggest leaving detailed feedback
         if (rating === 'not_helpful') {
-          triggerComprehensiveMode(message.content);
+          reportGap(messageId);
         }
       }
     } catch (error) {
@@ -410,63 +429,6 @@ export default function ChatInterfaceAI() {
     }
   };
 
-  const triggerComprehensiveMode = async (originalQuery: string) => {
-    // Show loading state
-    setLoading(true);
-    
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: `Please provide a more comprehensive answer to: "${originalQuery}"`,
-          sessionId,
-          responseMode: 'comprehensive',
-          forceComprehensive: true
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to get comprehensive response');
-      }
-
-      const assistantMessage: Message = {
-        id: Date.now().toString(),
-        type: 'assistant',
-        content: data.response,
-        timestamp: new Date(),
-        attribution: {
-          selectedSOP: data.attribution.selectedSOP,
-          confidence: data.attribution.confidence,
-          reasoning: data.attribution.reasoning ? 
-            `${data.attribution.reasoning.refinement?.iterations ? 
-              `Refined through ${data.attribution.reasoning.refinement.iterations} iterations. ` : 
-              ''}Chain-of-thought reasoning (${data.attribution.reasoning.steps} steps, ${data.attribution.reasoning.totalTokens} tokens)` :
-            "Comprehensive analysis with chain-of-thought reasoning"
-        }
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-      
-    } catch (error) {
-      console.error('Failed to get comprehensive response:', error);
-      
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        type: 'assistant',
-        content: 'I apologize, but I encountered an error while trying to provide a more comprehensive response. Please try asking your question again.',
-        timestamp: new Date()
-      };
-      
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const removeMessageFeedback = async (messageId: string) => {
     try {
@@ -753,31 +715,85 @@ export default function ChatInterfaceAI() {
                 <div className="flex-1">
                   <p className="whitespace-pre-wrap">{message.content}</p>
                   
-                  {/* SOP Attribution */}
+                  {/* Unified System Attribution */}
                   {message.type === 'assistant' && message.attribution && (
                     <div className="mt-3 pt-3 border-t border-gray-200">
                       <div className="space-y-2">
-                        <div className="flex items-center text-xs text-gray-600">
-                          <span className="font-medium">Source:</span>
-                          <span className="ml-2 bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
-                            {message.attribution.selectedSOP.sopId}
-                          </span>
-                          <span className="ml-2 text-gray-500">
-                            {message.attribution.selectedSOP.title}
-                          </span>
-                        </div>
-                        <div className="flex items-center text-xs text-gray-500">
-                          <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded">
-                            {Math.round(message.attribution.confidence * 100)}% confident
-                          </span>
-                          {message.suggestedChange?.detected && (
-                            <span className="ml-2 bg-orange-100 text-orange-800 px-2 py-0.5 rounded">
-                              Improvement suggested
+                        {/* Coverage Level and Strategy */}
+                        <div className="flex items-center text-xs text-gray-600 space-x-3">
+                          <div className="flex items-center">
+                            <span className="font-medium">Coverage:</span>
+                            <span className={`ml-2 px-2 py-0.5 rounded text-xs ${
+                              message.attribution.coverageLevel === 'high' ? 'bg-green-100 text-green-800' :
+                              message.attribution.coverageLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {message.attribution.coverageLevel || 'unknown'}
                             </span>
-                          )}
+                          </div>
+                          <div className="flex items-center">
+                            <span className="font-medium">Confidence:</span>
+                            <span className="ml-1 bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs">
+                              {Math.round(message.attribution.confidence * 100)}%
+                            </span>
+                          </div>
                         </div>
-                        {/* Feedback buttons */}
-                        <div className="flex items-center space-x-3 mt-2">
+
+                        {/* Sources - Handle both single and multiple SOPs */}
+                        {message.attribution.sopSources && message.attribution.sopSources.length > 0 ? (
+                          <div className="space-y-1">
+                            <span className="font-medium text-xs text-gray-600">Sources:</span>
+                            <div className="flex flex-wrap gap-2">
+                              {message.attribution.sopSources.map((sop, index) => (
+                                <div key={index} className="flex items-center bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
+                                  <span className="font-medium">{sop.sopId}</span>
+                                  <span className="ml-1 text-blue-600">({Math.round(sop.confidence * 100)}%)</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          // Fallback to legacy single SOP display
+                          <div className="flex items-center text-xs text-gray-600">
+                            <span className="font-medium">Source:</span>
+                            <span className="ml-2 bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
+                              {message.attribution.selectedSOP.sopId}
+                            </span>
+                            <span className="ml-2 text-gray-500">
+                              {message.attribution.selectedSOP.title}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Response Strategy Indicator */}
+                        {message.attribution.responseStrategy && (
+                          <div className="flex items-center text-xs text-gray-500">
+                            <span className={`px-2 py-0.5 rounded text-xs ${
+                              message.attribution.responseStrategy === 'escape_hatch' ? 'bg-orange-100 text-orange-800' :
+                              message.attribution.responseStrategy === 'partial_answer' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {message.attribution.responseStrategy === 'escape_hatch' ? '📝 Gap identified' :
+                               message.attribution.responseStrategy === 'partial_answer' ? '⚠️ Partial coverage' :
+                               '✅ Full coverage'}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Processing Info */}
+                        {message.attribution.processingTime && (
+                          <div className="text-xs text-gray-400">
+                            Processed in {message.attribution.processingTime}ms
+                            {message.attribution.tokensUsed && ` • ${message.attribution.tokensUsed} tokens used`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                        
+                  {/* Feedback buttons */}
+                  {message.type === 'assistant' && message.attribution && (
+                    <div className="flex items-center space-x-3 mt-2">
                           <div className="flex items-center space-x-1">
                             <button
                               onClick={() => 

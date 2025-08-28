@@ -42,40 +42,26 @@ prompts_config:
   active_prompt_set: "default"  # Can be overridden to switch prompt sets
 
 # ============================================================================
-# RESPONSE MODES - Technical configuration only
+# UNIFIED PROCESSING CONFIGURATION
 # ============================================================================
 
-response_modes:
-  # Quick Mode - Technical settings
-  quick:
-    llm: "gpt-4o-mini"
-    max_response_words: 500
-    temperature: 0.2
-    chain_of_thought: false
+processing:
+  # Primary model for all operations
+  model: "gpt-4o"
+  temperature: 0.3
+  max_tokens: 2000
+  max_response_words: 1500
+  
+  # XML structure processing
+  xml_processing:
+    enabled: true
+    validate_structure: true
     
-  # Standard Mode - Technical settings (Default)
-  standard:
-    llm: "gpt-4o"
-    max_response_words: 1000
-    temperature: 0.4
-    chain_of_thought: false
-    
-  # Comprehensive Mode - Technical settings
-  comprehensive:
-    max_response_words: 2000
-    # LLM and temperature controlled via Chain of Thought stages
-    chain_of_thought: true
-    reasoning_steps: ["analyze_query", "research_sops", "synthesize_answer", "validate_response"]
-    refinement:
-      enabled: true
-      max_iterations: 3
-      refinement_steps: ["research_sops", "synthesize_answer"]
-      confidence_threshold: 0.8
-      improvement_threshold: 0.1
-      timeout_per_iteration_ms: 120000
-
-# Default response mode for new conversations
-default_response_mode: "standard"
+  # Response strategy based on SOP coverage
+  coverage_thresholds:
+    high_confidence: 0.7      # Full answer with citations
+    medium_confidence: 0.4    # Answer with caveat about partial coverage
+    low_confidence: 0.4       # Trigger escape hatch
 
 # ============================================================================
 # DEFAULT/FALLBACK MODELS - Used when specific configs are missing
@@ -92,27 +78,29 @@ defaults:
   analytical_temperature: 0.3
 
 # ============================================================================
-# CHAIN-OF-THOUGHT REASONING - Technical configuration
+# ESCAPE HATCH CONFIGURATION
 # ============================================================================
 
-chain_of_thought:
-  enabled: true
-  stages:
-    analyze_query:
-      llm: "gpt-4o"
-      temperature: 0.3
-      
-    research_sops:
-      llm: "gpt-4o"
-      temperature: 0.2
-      
-    synthesize_answer:
-      llm: "gpt-4o"
-      temperature: 0.4
-      
-    validate_response:
-      llm: "gpt-4o"
-      temperature: 0.2
+escape_hatch:
+  # When to trigger escape hatch responses
+  trigger_threshold: 0.4
+  
+  # Message configuration
+  message_template: |
+    The Playbook does not explicitly provide guidance for {topic}.
+    
+    {partial_info}
+    
+    📝 This appears to be a gap in our Playbook. Please leave feedback so we can add appropriate guidance for this topic.
+  
+  # Always show partial information even with low confidence
+  show_partial_info: true
+  
+  # Request feedback on gaps
+  request_feedback: true
+  
+  # Feedback prompt text
+  feedback_prompt: "📝 Please leave feedback about this gap so we can improve our Playbook."
 
 # CUSTOMIZING REASONING STEPS:
 # You can customize which steps are used by modifying the reasoning_steps array in response modes.
@@ -209,17 +197,17 @@ feedback_system:
 
 sop_selection:
   # How to select SOPs for a query
-  llm: "gpt-4o"
-  selection_method: "semantic_similarity"
-  min_confidence: 0.4
-  prefer_recent_sops: false
+  model: "gpt-4o"
+  temperature: 0.2
+  selection_method: "xml_structured"
+  min_confidence: 0.3  # Lower threshold to catch partial matches
+  max_sops: 3
   
-  # Multi-SOP handling
-  multi_sop:
+  # Coverage assessment
+  coverage_analysis:
     enabled: true
-    combination_strategy: "semantic_weighted"
-    handle_duplicates: "intelligent_merge"
-    detect_relationships: true
+    gap_detection: true
+    confidence_calibration: true
 
 # ============================================================================
 # SESSION AND SUMMARY MANAGEMENT
@@ -236,11 +224,12 @@ session_management:
 # ============================================================================
 
 features:
-  enable_chain_of_thought: true
+  enable_xml_processing: true
   enable_sop_directory: true
-  enable_response_modes: true
-  enable_context_expansion: true
-  enable_auto_comprehensive: true
+  enable_escape_hatch: true
+  enable_inline_citations: true
+  enable_confidence_scoring: true
+  enable_coverage_analysis: true
   enable_conversation_summaries: true
 
 # ============================================================================
@@ -261,43 +250,34 @@ debug:
 environments:
   development:
     debug:
-      log_response_modes: true
+      log_xml_processing: true
       log_context_usage: true
-    response_modes:
-      quick:
-        temperature: 0.3  # Slightly higher for testing
+      log_coverage_analysis: true
+    processing:
+      temperature: 0.4  # Slightly higher for testing variety
     prompts_config:
-      active_prompt_set: "default"  # Can use different prompt sets per environment
+      active_prompt_set: "default"
         
   production:
     debug:
-      log_response_modes: false
+      log_xml_processing: false
       log_context_usage: false
+      log_coverage_analysis: false
     context_management:
       token_limits:
         hard_limit: 7500  # Slightly more conservative
+    escape_hatch:
+      trigger_threshold: 0.5  # Higher threshold for production
     prompts_config:
       active_prompt_set: "default"
         
   testing:
-    response_modes:
-      quick:
-        llm: "gpt-4o-mini"  # Use cheaper model for tests
-      standard:
-        llm: "gpt-4o-mini"
-      comprehensive:
-        max_response_words: 500  # Shorter for faster tests
+    processing:
+      model: "gpt-4o-mini"  # Use cheaper model for tests
+      max_response_words: 500  # Shorter for faster tests
     sop_selection:
-      llm: "gpt-4o-mini"
-    chain_of_thought:
-      stages:
-        analyze_query:
-          llm: "gpt-4o-mini"
-        research_sops:
-          llm: "gpt-4o-mini"
-        synthesize_answer:
-          llm: "gpt-4o-mini"
-        validate_response:
-          llm: "gpt-4o-mini"
+      model: "gpt-4o-mini"
+    escape_hatch:
+      trigger_threshold: 0.3  # Lower threshold to test escape scenarios
     prompts_config:
-      active_prompt_set: "technical"  # Use technical prompts for testing
+      active_prompt_set: "default"

@@ -219,6 +219,31 @@ export interface DefaultsConfig {
   analytical_temperature: number;
 }
 
+// New interfaces for unified configuration
+export interface ProcessingConfig {
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  max_response_words: number;
+  xml_processing: {
+    enabled: boolean;
+    validate_structure: boolean;
+  };
+  coverage_thresholds: {
+    high_confidence: number;
+    medium_confidence: number;
+    low_confidence: number;
+  };
+}
+
+export interface EscapeHatchConfig {
+  trigger_threshold: number;
+  message_template: string;
+  show_partial_info: boolean;
+  request_feedback: boolean;
+  feedback_prompt: string;
+}
+
 // New interfaces for split configuration files
 export interface PromptsConfig {
   active_prompt_set: string;
@@ -243,16 +268,9 @@ export interface SystemConfig {
     file: string;
     active_prompt_set: string;
   };
-  response_modes: {
-    quick: Omit<ResponseModeConfig, 'name' | 'description'>;
-    standard: Omit<ResponseModeConfig, 'name' | 'description'>;
-    comprehensive: Omit<ResponseModeConfig, 'name' | 'description'>;
-  };
-  default_response_mode: string;
+  processing: ProcessingConfig;
+  escape_hatch: EscapeHatchConfig;
   defaults?: DefaultsConfig;
-  chain_of_thought: Omit<ChainOfThoughtConfig, 'stages'> & {
-    stages: Record<string, Omit<ChainOfThoughtStage, 'description'>>;
-  };
   sop_directory: SOPDirectoryConfig;
   context_management: ContextManagementConfig;
   feedback_system: FeedbackSystemConfig;
@@ -264,14 +282,9 @@ export interface SystemConfig {
 }
 
 export interface AIConfig {
-  response_modes: {
-    quick: ResponseModeConfig;
-    standard: ResponseModeConfig;
-    comprehensive: ResponseModeConfig;
-  };
-  default_response_mode: string;
+  processing: ProcessingConfig;
+  escape_hatch: EscapeHatchConfig;
   defaults?: DefaultsConfig;
-  chain_of_thought: ChainOfThoughtConfig;
   sop_directory: SOPDirectoryConfig;
   context_management: ContextManagementConfig;
   feedback_system: FeedbackSystemConfig;
@@ -282,8 +295,15 @@ export interface AIConfig {
   debug: DebugConfig;
   environments?: Record<string, Partial<AIConfig>>;
   
-  // Legacy support - these will be deprecated
-  models?: any; // For backward compatibility
+  // Legacy support for backward compatibility
+  response_modes?: {
+    quick: ResponseModeConfig;
+    standard: ResponseModeConfig;
+    comprehensive: ResponseModeConfig;
+  };
+  default_response_mode?: string;
+  chain_of_thought?: ChainOfThoughtConfig;
+  models?: any;
   multi_sop?: MultiSOPConfig;
   modes?: {
     sop_selection: AIModeConfig;
@@ -429,46 +449,11 @@ class AIConfigManager {
       throw new Error(`Active prompt set '${activePromptSet}' not found in prompts configuration`);
     }
 
-    // Merge response mode configurations (technical settings + descriptions)
-    const mergedResponseModes = {
-      quick: {
-        ...systemConfig.response_modes.quick,
-        name: activePrompts.response_modes?.quick?.name || 'Quick Answer',
-        description: activePrompts.response_modes?.quick?.description || 'Fast responses'
-      } as ResponseModeConfig,
-      standard: {
-        ...systemConfig.response_modes.standard,
-        name: activePrompts.response_modes?.standard?.name || 'Standard Answer',
-        description: activePrompts.response_modes?.standard?.description || 'Balanced responses'
-      } as ResponseModeConfig,
-      comprehensive: {
-        ...systemConfig.response_modes.comprehensive,
-        name: activePrompts.response_modes?.comprehensive?.name || 'Comprehensive Answer',
-        description: activePrompts.response_modes?.comprehensive?.description || 'Detailed analysis'
-      } as ResponseModeConfig
-    };
-
-    // Merge chain of thought configurations
-    const mergedChainOfThought: ChainOfThoughtConfig = {
-      ...systemConfig.chain_of_thought,
-      stages: {}
-    };
-
-    // Add descriptions to chain of thought stages
-    for (const [stageKey, stageConfig] of Object.entries(systemConfig.chain_of_thought.stages)) {
-      const stageDescription = activePrompts.chain_of_thought_stages?.[stageKey]?.description || `${stageKey} stage`;
-      mergedChainOfThought.stages[stageKey as keyof typeof mergedChainOfThought.stages] = {
-        ...stageConfig,
-        description: stageDescription
-      } as ChainOfThoughtStage;
-    }
-
-    // Build final merged configuration
+    // Build final merged configuration with new unified structure
     const mergedConfig: AIConfig = {
-      response_modes: mergedResponseModes,
-      default_response_mode: systemConfig.default_response_mode,
+      processing: systemConfig.processing,
+      escape_hatch: systemConfig.escape_hatch,
       defaults: systemConfig.defaults,
-      chain_of_thought: mergedChainOfThought,
       sop_directory: systemConfig.sop_directory,
       context_management: systemConfig.context_management,
       feedback_system: systemConfig.feedback_system,
@@ -543,27 +528,51 @@ class AIConfigManager {
    * Validate the configuration structure and values
    */
   private validateConfig(config: AIConfig): void {
-    // Required sections for new configuration structure
-    const requiredSections = ['response_modes', 'prompts'];
+    // Required sections for new unified configuration structure
+    const requiredSections = ['processing', 'escape_hatch', 'prompts'];
     for (const section of requiredSections) {
       if (!config[section as keyof AIConfig]) {
         throw new Error(`Missing required configuration section: ${section}`);
       }
     }
 
-    // Required response modes
-    const requiredResponseModes = ['quick', 'standard', 'comprehensive'];
-    for (const mode of requiredResponseModes) {
-      if (!config.response_modes?.[mode as keyof typeof config.response_modes]) {
-        throw new Error(`Missing required response mode configuration: ${mode}`);
+    // Validate processing configuration
+    if (config.processing) {
+      if (config.processing.temperature < 0 || config.processing.temperature > 2) {
+        throw new Error(`Invalid processing temperature: ${config.processing.temperature} (must be 0-2)`);
+      }
+      
+      if (config.processing.max_tokens < 100 || config.processing.max_tokens > 4000) {
+        throw new Error(`Invalid max_tokens: ${config.processing.max_tokens} (must be 100-4000)`);
+      }
+
+      // Validate coverage thresholds
+      const thresholds = config.processing.coverage_thresholds;
+      if (thresholds) {
+        if (thresholds.high_confidence < 0 || thresholds.high_confidence > 1) {
+          throw new Error(`Invalid high_confidence threshold: ${thresholds.high_confidence} (must be 0-1)`);
+        }
+        if (thresholds.medium_confidence < 0 || thresholds.medium_confidence > 1) {
+          throw new Error(`Invalid medium_confidence threshold: ${thresholds.medium_confidence} (must be 0-1)`);
+        }
+        if (thresholds.low_confidence < 0 || thresholds.low_confidence > 1) {
+          throw new Error(`Invalid low_confidence threshold: ${thresholds.low_confidence} (must be 0-1)`);
+        }
       }
     }
 
-    // Validate temperature ranges for response modes
+    // Validate escape hatch configuration
+    if (config.escape_hatch) {
+      if (config.escape_hatch.trigger_threshold < 0 || config.escape_hatch.trigger_threshold > 1) {
+        throw new Error(`Invalid escape_hatch trigger_threshold: ${config.escape_hatch.trigger_threshold} (must be 0-1)`);
+      }
+    }
+
+    // Validate legacy response modes if they exist (for backward compatibility)
     if (config.response_modes) {
       for (const [modeName, modeConfig] of Object.entries(config.response_modes)) {
         if (modeConfig.temperature !== undefined && (modeConfig.temperature < 0 || modeConfig.temperature > 2)) {
-          throw new Error(`Invalid temperature for ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
+          throw new Error(`Invalid temperature for legacy mode ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
         }
       }
     }
@@ -572,19 +581,10 @@ class AIConfigManager {
     if (config.modes) {
       for (const [modeName, modeConfig] of Object.entries(config.modes)) {
         if (modeConfig.temperature !== undefined && (modeConfig.temperature < 0 || modeConfig.temperature > 2)) {
-          throw new Error(`Invalid temperature for ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
+          throw new Error(`Invalid temperature for legacy mode ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
         }
         if (modeConfig.max_tokens < 1 || modeConfig.max_tokens > 4000) {
-          throw new Error(`Invalid max_tokens for ${modeName}: ${modeConfig.max_tokens} (must be 1-4000)`);
-        }
-      }
-    }
-
-    // Validate temperature ranges for response modes (skip validation for modes without temperature)
-    if (config.response_modes) {
-      for (const [modeName, modeConfig] of Object.entries(config.response_modes)) {
-        if (modeConfig.temperature !== undefined && (modeConfig.temperature < 0 || modeConfig.temperature > 2)) {
-          throw new Error(`Invalid temperature for response mode ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
+          throw new Error(`Invalid max_tokens for legacy mode ${modeName}: ${modeConfig.max_tokens} (must be 1-4000)`);
         }
       }
     }
@@ -819,7 +819,45 @@ class AIConfigManager {
   }
 
   /**
-   * Get default response mode
+   * Get processing configuration
+   */
+  public getProcessingConfig(): ProcessingConfig {
+    const config = this.getConfig();
+    if (!config.processing) {
+      throw new Error('Processing configuration not found');
+    }
+    return config.processing;
+  }
+
+  /**
+   * Get escape hatch configuration
+   */
+  public getEscapeHatchConfig(): EscapeHatchConfig {
+    const config = this.getConfig();
+    if (!config.escape_hatch) {
+      throw new Error('Escape hatch configuration not found');
+    }
+    return config.escape_hatch;
+  }
+
+  /**
+   * Get coverage threshold for a specific level
+   */
+  public getCoverageThreshold(level: 'high' | 'medium' | 'low'): number {
+    const config = this.getProcessingConfig();
+    return config.coverage_thresholds[`${level}_confidence`];
+  }
+
+  /**
+   * Check if XML processing is enabled
+   */
+  public isXMLProcessingEnabled(): boolean {
+    const config = this.getConfig();
+    return config.processing?.xml_processing?.enabled === true;
+  }
+
+  /**
+   * Legacy: Get default response mode (for backward compatibility)
    */
   public getDefaultResponseMode(): 'quick' | 'standard' | 'comprehensive' {
     const config = this.getConfig();
@@ -832,13 +870,13 @@ class AIConfigManager {
   }
 
   /**
-   * Check if chain of thought is enabled for a response mode
+   * Legacy: Check if chain of thought is enabled for a response mode (for backward compatibility)
    */
   public isChainOfThoughtEnabled(mode?: 'quick' | 'standard' | 'comprehensive'): boolean {
     const config = this.getConfig();
     if (!config.chain_of_thought?.enabled) return false;
     
-    if (mode) {
+    if (mode && config.response_modes) {
       const modeConfig = this.getResponseModeConfig(mode);
       return modeConfig.chain_of_thought;
     }
@@ -858,7 +896,14 @@ export const isFeatureEnabled = (feature: keyof FeatureFlags) => aiConfig.isFeat
 export const debugLog = (category: keyof DebugConfig, message: string, data?: any) => 
   aiConfig.debugLog(category, message, data);
 
-// New convenience functions for updated configuration
+// New convenience functions for unified configuration
+export const getProcessingConfig = () => aiConfig.getProcessingConfig();
+export const getEscapeHatchConfig = () => aiConfig.getEscapeHatchConfig();
+export const getCoverageThreshold = (level: 'high' | 'medium' | 'low') => 
+  aiConfig.getCoverageThreshold(level);
+export const isXMLProcessingEnabled = () => aiConfig.isXMLProcessingEnabled();
+
+// Legacy convenience functions (for backward compatibility)
 export const getResponseModeConfig = (mode: 'quick' | 'standard' | 'comprehensive') => 
   aiConfig.getResponseModeConfig(mode);
 export const getChainOfThoughtConfig = () => aiConfig.getChainOfThoughtConfig();
