@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, ThumbsUp, ThumbsDown, Download } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   id: string;
@@ -123,20 +125,40 @@ export default function ChatInterfaceAI() {
           timestamp: string;
           selectedSopId?: string;
           confidence?: number;
-        }, index: number) => ({
-          id: `${Date.now()}-${index}`,
-          type: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.content,
-          timestamp: new Date(msg.timestamp),
-          attribution: msg.selectedSopId ? {
-            selectedSOP: {
-              sopId: msg.selectedSopId,
-              title: `SOP ${msg.selectedSopId}`
-            },
-            confidence: msg.confidence || 0.9,
-            reasoning: 'From chat history'
-          } : undefined
-        }));
+        }, index: number) => {
+          const confidence = msg.confidence || 0.9;
+          // Calculate default values for historical messages
+          const coverageLevel = confidence >= 0.7 ? 'high' : confidence >= 0.4 ? 'medium' : 'low';
+          const responseStrategy = confidence >= 0.7 ? 'full_answer' : confidence >= 0.4 ? 'partial_answer' : 'escape_hatch';
+          
+          return {
+            id: `${Date.now()}-${index}`,
+            type: msg.role === 'user' ? 'user' : 'assistant',
+            content: msg.content,
+            timestamp: new Date(msg.timestamp),
+            attribution: msg.selectedSopId ? {
+              selectedSOP: {
+                sopId: msg.selectedSopId,
+                title: `SOP ${msg.selectedSopId}`
+              },
+              confidence,
+              reasoning: 'From chat history',
+              // Add default values for new fields
+              coverageLevel: coverageLevel as 'high' | 'medium' | 'low',
+              responseStrategy: responseStrategy as 'full_answer' | 'partial_answer' | 'escape_hatch',
+              gaps: [],
+              queryIntent: 'Historical message',
+              keyTopics: [],
+              sopSources: [{
+                sopId: msg.selectedSopId,
+                title: `SOP ${msg.selectedSopId}`,
+                confidence,
+                sections: [],
+                keyPoints: []
+              }]
+            } : undefined
+          };
+        });
         
         setMessages(formattedMessages);
       }
@@ -215,20 +237,40 @@ export default function ChatInterfaceAI() {
           timestamp: string;
           selectedSopId?: string;
           confidence?: number;
-        }, index: number) => ({
-          id: `${Date.now()}-${index}`,
-          type: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.content,
-          timestamp: new Date(msg.timestamp),
-          attribution: msg.selectedSopId ? {
-            selectedSOP: {
-              sopId: msg.selectedSopId,
-              title: `SOP ${msg.selectedSopId}`
-            },
-            confidence: msg.confidence || 0.9,
-            reasoning: 'From chat history'
-          } : undefined
-        }));
+        }, index: number) => {
+          const confidence = msg.confidence || 0.9;
+          // Calculate default values for historical messages
+          const coverageLevel = confidence >= 0.7 ? 'high' : confidence >= 0.4 ? 'medium' : 'low';
+          const responseStrategy = confidence >= 0.7 ? 'full_answer' : confidence >= 0.4 ? 'partial_answer' : 'escape_hatch';
+          
+          return {
+            id: `${Date.now()}-${index}`,
+            type: msg.role === 'user' ? 'user' : 'assistant',
+            content: msg.content,
+            timestamp: new Date(msg.timestamp),
+            attribution: msg.selectedSopId ? {
+              selectedSOP: {
+                sopId: msg.selectedSopId,
+                title: `SOP ${msg.selectedSopId}`
+              },
+              confidence,
+              reasoning: 'From chat history',
+              // Add default values for new fields
+              coverageLevel: coverageLevel as 'high' | 'medium' | 'low',
+              responseStrategy: responseStrategy as 'full_answer' | 'partial_answer' | 'escape_hatch',
+              gaps: [],
+              queryIntent: 'Historical message',
+              keyTopics: [],
+              sopSources: [{
+                sopId: msg.selectedSopId,
+                title: `SOP ${msg.selectedSopId}`,
+                confidence,
+                sections: [],
+                keyPoints: []
+              }]
+            } : undefined
+          };
+        });
         
         setMessages(formattedMessages);
       }
@@ -713,131 +755,111 @@ export default function ChatInterfaceAI() {
                   <User className="w-5 h-5 mt-0.5 text-white flex-shrink-0" />
                 )}
                 <div className="flex-1">
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <div className={`prose prose-sm max-w-none ${message.type === 'user' ? 'text-white' : 'text-gray-800'}`}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({...props}) => <h1 className={`text-lg font-bold mb-2 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        h2: ({...props}) => <h2 className={`text-base font-semibold mb-2 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        h3: ({...props}) => <h3 className={`text-sm font-medium mb-1 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        p: ({...props}) => <p className={`mb-2 last:mb-0 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        ul: ({...props}) => <ul className={`list-disc pl-4 mb-2 space-y-1 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        ol: ({...props}) => <ol className={`list-decimal pl-4 mb-2 space-y-1 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        li: ({...props}) => <li className={message.type === 'user' ? 'text-white' : 'text-gray-800'} {...props} />,
+                        strong: ({...props}) => <strong className={`font-semibold ${message.type === 'user' ? 'text-white' : 'text-gray-900'}`} {...props} />,
+                        em: ({...props}) => <em className={`italic ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        code: ({...props}) => <code className={message.type === 'user' ? 'bg-blue-500 text-white px-1 py-0.5 rounded text-xs font-mono border border-blue-400' : 'bg-blue-50 text-blue-800 px-1 py-0.5 rounded text-xs font-mono border'} {...props} />,
+                        pre: ({...props}) => <pre className={message.type === 'user' ? 'bg-blue-500 p-2 rounded border border-blue-400 text-xs overflow-x-auto mb-2 text-white' : 'bg-gray-50 p-2 rounded border text-xs overflow-x-auto mb-2'} {...props} />,
+                        blockquote: ({...props}) => <blockquote className={message.type === 'user' ? 'border-l-4 border-white pl-3 italic text-white mb-2' : 'border-l-4 border-blue-200 pl-3 italic text-gray-700 mb-2'} {...props} />,
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                   
-                  {/* Unified System Attribution */}
+                  {/* Simplified Attribution Display */}
                   {message.type === 'assistant' && message.attribution && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <div className="space-y-2">
-                        {/* Coverage Level and Strategy */}
-                        <div className="flex items-center text-xs text-gray-600 space-x-3">
-                          <div className="flex items-center">
-                            <span className="font-medium">Coverage:</span>
-                            <span className={`ml-2 px-2 py-0.5 rounded text-xs ${
-                              message.attribution.coverageLevel === 'high' ? 'bg-green-100 text-green-800' :
-                              message.attribution.coverageLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {message.attribution.coverageLevel || 'unknown'}
-                            </span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="font-medium">Confidence:</span>
-                            <span className="ml-1 bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs">
-                              {Math.round(message.attribution.confidence * 100)}%
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Sources - Handle both single and multiple SOPs */}
-                        {message.attribution.sopSources && message.attribution.sopSources.length > 0 ? (
-                          <div className="space-y-1">
-                            <span className="font-medium text-xs text-gray-600">Sources:</span>
-                            <div className="flex flex-wrap gap-2">
-                              {message.attribution.sopSources.map((sop, index) => (
-                                <div key={index} className="flex items-center bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
-                                  <span className="font-medium">{sop.sopId}</span>
-                                  <span className="ml-1 text-blue-600">({Math.round(sop.confidence * 100)}%)</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          // Fallback to legacy single SOP display
-                          <div className="flex items-center text-xs text-gray-600">
-                            <span className="font-medium">Source:</span>
-                            <span className="ml-2 bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
-                              {message.attribution.selectedSOP.sopId}
-                            </span>
-                            <span className="ml-2 text-gray-500">
-                              {message.attribution.selectedSOP.title}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Response Strategy Indicator */}
-                        {message.attribution.responseStrategy && (
-                          <div className="flex items-center text-xs text-gray-500">
-                            <span className={`px-2 py-0.5 rounded text-xs ${
-                              message.attribution.responseStrategy === 'escape_hatch' ? 'bg-orange-100 text-orange-800' :
-                              message.attribution.responseStrategy === 'partial_answer' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-green-100 text-green-800'
-                            }`}>
-                              {message.attribution.responseStrategy === 'escape_hatch' ? '📝 Gap identified' :
-                               message.attribution.responseStrategy === 'partial_answer' ? '⚠️ Partial coverage' :
-                               '✅ Full coverage'}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Processing Info */}
-                        {message.attribution.processingTime && (
-                          <div className="text-xs text-gray-400">
-                            Processed in {message.attribution.processingTime}ms
-                            {message.attribution.tokensUsed && ` • ${message.attribution.tokensUsed} tokens used`}
-                          </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                      <div className="flex items-center gap-3">
+                        {/* Coverage Badge */}
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          message.attribution.coverageLevel === 'high' ? 'bg-green-100 text-green-800' :
+                          message.attribution.coverageLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {message.attribution.coverageLevel || 'unknown'} coverage
+                        </span>
+                        
+                        {/* Overall Confidence */}
+                        <span className="text-gray-600">
+                          Overall Confidence (avg): {Math.round(message.attribution.confidence * 100)}%
+                        </span>
+                        
+                        {/* Strategy Indicator if not full coverage */}
+                        {message.attribution.responseStrategy !== 'full_answer' && message.attribution.responseStrategy && (
+                          <span className={`px-2 py-0.5 rounded text-xs ${
+                            message.attribution.responseStrategy === 'escape_hatch' ? 'bg-orange-100 text-orange-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {message.attribution.responseStrategy === 'escape_hatch' ? '📝 Gap identified' : '⚠️ Partial coverage'}
+                          </span>
                         )}
                       </div>
+                      
+                      {/* Processing Info */}
+                      {message.attribution.processingTime && (
+                        <span className="text-gray-400 text-xs">
+                          {message.attribution.processingTime}ms
+                        </span>
+                      )}
                     </div>
                   )}
-                        
+
                   {/* Feedback buttons */}
                   {message.type === 'assistant' && message.attribution && (
                     <div className="flex items-center space-x-3 mt-2">
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => 
-                                messageFeedback[message.id] === 'helpful' 
-                                  ? removeMessageFeedback(message.id)
-                                  : handleMessageFeedback(message.id, 'helpful')
-                              }
-                              className={`p-1 rounded transition-colors ${
-                                messageFeedback[message.id] === 'helpful'
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
-                              }`}
-                              title="Helpful"
-                            >
-                              <ThumbsUp className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => 
-                                messageFeedback[message.id] === 'not_helpful' 
-                                  ? removeMessageFeedback(message.id)
-                                  : handleMessageFeedback(message.id, 'not_helpful')
-                              }
-                              className={`p-1 rounded transition-colors ${
-                                messageFeedback[message.id] === 'not_helpful'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-                              }`}
-                              title="Not helpful"
-                            >
-                              <ThumbsDown className="w-4 h-4" />
-                            </button>
-                          </div>
-                          
-                          {!message.suggestedChange?.detected && (
-                            <button
-                              onClick={() => reportGap(message.id)}
-                              className="flex items-center text-xs text-orange-600 hover:text-orange-700"
-                            >
-                              <AlertCircle className="w-3 h-3 mr-1" />
-                              Report Gap
-                            </button>
-                          )}
-                        </div>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => 
+                            messageFeedback[message.id] === 'helpful' 
+                              ? removeMessageFeedback(message.id)
+                              : handleMessageFeedback(message.id, 'helpful')
+                          }
+                          className={`p-1 rounded transition-colors ${
+                            messageFeedback[message.id] === 'helpful'
+                              ? 'bg-green-100 text-green-700'
+                              : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                          }`}
+                          title="Helpful"
+                        >
+                          <ThumbsUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => 
+                            messageFeedback[message.id] === 'not_helpful' 
+                              ? removeMessageFeedback(message.id)
+                              : handleMessageFeedback(message.id, 'not_helpful')
+                          }
+                          className={`p-1 rounded transition-colors ${
+                            messageFeedback[message.id] === 'not_helpful'
+                              ? 'bg-red-100 text-red-700'
+                              : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                          }`}
+                          title="Not helpful"
+                        >
+                          <ThumbsDown className="w-4 h-4" />
+                        </button>
                       </div>
+                      
+                      {!message.suggestedChange?.detected && (
+                        <button
+                          onClick={() => reportGap(message.id)}
+                          className="flex items-center text-xs text-orange-600 hover:text-orange-700"
+                        >
+                          <AlertCircle className="w-3 h-3 mr-1" />
+                          Report Gap
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

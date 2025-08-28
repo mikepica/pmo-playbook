@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Bot, User, RotateCcw, AlertCircle, ChevronDown, Clock, Edit2, ThumbsUp, ThumbsDown, Download, Settings, Zap, Brain } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useChatContext } from '@/contexts/ChatContext';
 
 interface Message {
@@ -10,12 +12,33 @@ interface Message {
   content: string;
   timestamp: Date;
   attribution?: {
+    // Primary SOP for backward compatibility
     selectedSOP: {
       sopId: string;
       title: string;
     };
     confidence: number;
-    reasoning: string;
+    
+    // New unified system data
+    responseStrategy?: 'full_answer' | 'partial_answer' | 'escape_hatch';
+    coverageLevel?: 'high' | 'medium' | 'low';
+    sopSources?: Array<{
+      sopId: string;
+      title: string;
+      confidence: number;
+      sections: string[];
+      keyPoints: string[];
+    }>;
+    gaps?: string[];
+    queryIntent?: string;
+    keyTopics?: string[];
+    processingTime?: number;
+    tokensUsed?: number;
+    
+    // Legacy fields
+    reasoning?: string;
+    responseMode?: string;
+    usedChainOfThought?: boolean;
   };
   suggestedChange?: {
     detected: boolean;
@@ -55,10 +78,8 @@ export default function ChatInterfacePersistent() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
   const [messageFeedback, setMessageFeedback] = useState<Record<string, 'helpful' | 'not_helpful'>>({});
-  const [responseMode, setResponseMode] = useState<'quick' | 'standard' | 'comprehensive'>('standard');
-  const [showResponseModeSelector, setShowResponseModeSelector] = useState(false);
+  // Removed response mode selector - now using unified system
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const responseModeRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
 
   const generateSessionId = () => {
@@ -184,9 +205,6 @@ export default function ChatInterfacePersistent() {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowSessionDropdown(false);
-      }
-      if (responseModeRef.current && !responseModeRef.current.contains(event.target as Node)) {
-        setShowResponseModeSelector(false);
       }
     };
 
@@ -351,8 +369,7 @@ export default function ChatInterfacePersistent() {
         },
         body: JSON.stringify({
           message,
-          sessionId,
-          responseMode: responseMode
+          sessionId
         }),
       });
 
@@ -427,13 +444,9 @@ export default function ChatInterfacePersistent() {
       if (response.ok) {
         setMessageFeedback(prev => ({ ...prev, [messageId]: rating }));
         
-        // If user marked as not helpful, offer comprehensive mode
+        // If user marked as not helpful, suggest leaving detailed feedback
         if (rating === 'not_helpful') {
-          // Find the original user question that this response was for
-          const messageIndex = messages.findIndex(m => m.id === messageId);
-          if (messageIndex > 0 && messages[messageIndex - 1]?.type === 'user') {
-            triggerComprehensiveMode(messages[messageIndex - 1].content);
-          }
+          reportGap(messageId);
         }
       }
     } catch (error) {
@@ -441,63 +454,7 @@ export default function ChatInterfacePersistent() {
     }
   };
 
-  const triggerComprehensiveMode = async (originalQuery: string) => {
-    // Show loading state
-    setLoading(true);
-    
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: `Please provide a more comprehensive answer to: "${originalQuery}"`,
-          sessionId,
-          responseMode: 'comprehensive',
-          forceComprehensive: true
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to get comprehensive response');
-      }
-
-      const assistantMessage: Message = {
-        id: Date.now().toString(),
-        type: 'assistant',
-        content: data.response,
-        timestamp: new Date(),
-        attribution: {
-          selectedSOP: data.attribution.selectedSOP,
-          confidence: data.attribution.confidence,
-          reasoning: data.attribution.reasoning ? 
-            `${data.attribution.reasoning.refinement?.iterations ? 
-              `Refined through ${data.attribution.reasoning.refinement.iterations} iterations. ` : 
-              ''}Chain-of-thought reasoning (${data.attribution.reasoning.steps} steps, ${data.attribution.reasoning.totalTokens} tokens)` :
-            "Comprehensive analysis with chain-of-thought reasoning"
-        }
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-      
-    } catch (error) {
-      console.error('Failed to get comprehensive response:', error);
-      
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        type: 'assistant',
-        content: 'I apologize, but I encountered an error while trying to provide a more comprehensive response. Please try asking your question again.',
-        timestamp: new Date()
-      };
-      
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Removed triggerComprehensiveMode - now using unified system
 
   const removeMessageFeedback = async (messageId: string) => {
     try {
@@ -786,85 +743,111 @@ export default function ChatInterfacePersistent() {
                   <User className="w-5 h-5 mt-0.5 text-white flex-shrink-0" />
                 )}
                 <div className="flex-1">
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <div className={`prose prose-sm max-w-none ${message.type === 'user' ? 'text-white' : 'text-gray-800'}`}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({...props}) => <h1 className={`text-lg font-bold mb-2 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        h2: ({...props}) => <h2 className={`text-base font-semibold mb-2 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        h3: ({...props}) => <h3 className={`text-sm font-medium mb-1 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        p: ({...props}) => <p className={`mb-2 last:mb-0 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        ul: ({...props}) => <ul className={`list-disc pl-4 mb-2 space-y-1 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        ol: ({...props}) => <ol className={`list-decimal pl-4 mb-2 space-y-1 ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        li: ({...props}) => <li className={message.type === 'user' ? 'text-white' : 'text-gray-800'} {...props} />,
+                        strong: ({...props}) => <strong className={`font-semibold ${message.type === 'user' ? 'text-white' : 'text-gray-900'}`} {...props} />,
+                        em: ({...props}) => <em className={`italic ${message.type === 'user' ? 'text-white' : ''}`} {...props} />,
+                        code: ({...props}) => <code className={message.type === 'user' ? 'bg-blue-500 text-white px-1 py-0.5 rounded text-xs font-mono border border-blue-400' : 'bg-blue-50 text-blue-800 px-1 py-0.5 rounded text-xs font-mono border'} {...props} />,
+                        pre: ({...props}) => <pre className={message.type === 'user' ? 'bg-blue-500 p-2 rounded border border-blue-400 text-xs overflow-x-auto mb-2 text-white' : 'bg-gray-50 p-2 rounded border text-xs overflow-x-auto mb-2'} {...props} />,
+                        blockquote: ({...props}) => <blockquote className={message.type === 'user' ? 'border-l-4 border-white pl-3 italic text-white mb-2' : 'border-l-4 border-blue-200 pl-3 italic text-gray-700 mb-2'} {...props} />,
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                   
-                  {/* SOP Attribution */}
+                  {/* Simplified Attribution Display */}
                   {message.type === 'assistant' && message.attribution && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <div className="space-y-2">
-                        <div className="flex items-center text-xs text-gray-600">
-                          <span className="font-medium">Source:</span>
-                          {message.attribution.selectedSOP.sopId === 'GENERAL_PM_KNOWLEDGE' ? (
-                            <span className="ml-2 bg-purple-50 text-purple-800 px-2 py-1 rounded text-xs">
-                              General PM Expertise
-                            </span>
-                          ) : (
-                            <>
-                              <span className="ml-2 bg-blue-50 text-blue-800 px-2 py-1 rounded text-xs">
-                                {message.attribution.selectedSOP.sopId}
-                              </span>
-                              <span className="ml-2 text-gray-500">
-                                {message.attribution.selectedSOP.title}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex items-center text-xs text-gray-500">
-                          <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded">
-                            {Math.round(message.attribution.confidence * 100)}% confident
+                    <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                      <div className="flex items-center gap-3">
+                        {/* Coverage Badge */}
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          message.attribution.coverageLevel === 'high' ? 'bg-green-100 text-green-800' :
+                          message.attribution.coverageLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {message.attribution.coverageLevel || 'unknown'} coverage
+                        </span>
+                        
+                        {/* Overall Confidence */}
+                        <span className="text-gray-600">
+                          Overall Confidence (avg): {Math.round(message.attribution.confidence * 100)}%
+                        </span>
+                        
+                        {/* Strategy Indicator if not full coverage */}
+                        {message.attribution.responseStrategy !== 'full_answer' && message.attribution.responseStrategy && (
+                          <span className={`px-2 py-0.5 rounded text-xs ${
+                            message.attribution.responseStrategy === 'escape_hatch' ? 'bg-orange-100 text-orange-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {message.attribution.responseStrategy === 'escape_hatch' ? '📝 Gap identified' : '⚠️ Partial coverage'}
                           </span>
-                          {message.suggestedChange?.detected && (
-                            <span className="ml-2 bg-orange-100 text-orange-800 px-2 py-0.5 rounded">
-                              Improvement suggested
-                            </span>
-                          )}
-                        </div>
-                        {/* Feedback buttons */}
-                        <div className="flex items-center space-x-3 mt-2">
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => 
-                                messageFeedback[message.id] === 'helpful' 
-                                  ? removeMessageFeedback(message.id)
-                                  : handleMessageFeedback(message.id, 'helpful')
-                              }
-                              className={`p-1 rounded transition-colors ${
-                                messageFeedback[message.id] === 'helpful'
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
-                              }`}
-                              title="Helpful"
-                            >
-                              <ThumbsUp className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => 
-                                messageFeedback[message.id] === 'not_helpful' 
-                                  ? removeMessageFeedback(message.id)
-                                  : handleMessageFeedback(message.id, 'not_helpful')
-                              }
-                              className={`p-1 rounded transition-colors ${
-                                messageFeedback[message.id] === 'not_helpful'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-                              }`}
-                              title="Not helpful"
-                            >
-                              <ThumbsDown className="w-4 h-4" />
-                            </button>
-                          </div>
-                          
-                          {!message.suggestedChange?.detected && (
-                            <button
-                              onClick={() => reportGap(message.id)}
-                              className="flex items-center text-xs text-orange-600 hover:text-orange-700"
-                            >
-                              <AlertCircle className="w-3 h-3 mr-1" />
-                              Report Gap
-                            </button>
-                          )}
-                        </div>
+                        )}
                       </div>
+                      
+                      {/* Processing Info */}
+                      {message.attribution.processingTime && (
+                        <span className="text-gray-400 text-xs">
+                          {message.attribution.processingTime}ms
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Feedback buttons */}
+                  {message.type === 'assistant' && message.attribution && (
+                    <div className="flex items-center space-x-3 mt-2">
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => 
+                            messageFeedback[message.id] === 'helpful' 
+                              ? removeMessageFeedback(message.id)
+                              : handleMessageFeedback(message.id, 'helpful')
+                          }
+                          className={`p-1 rounded transition-colors ${
+                            messageFeedback[message.id] === 'helpful'
+                              ? 'bg-green-100 text-green-700'
+                              : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                          }`}
+                          title="Helpful"
+                        >
+                          <ThumbsUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => 
+                            messageFeedback[message.id] === 'not_helpful' 
+                              ? removeMessageFeedback(message.id)
+                              : handleMessageFeedback(message.id, 'not_helpful')
+                          }
+                          className={`p-1 rounded transition-colors ${
+                            messageFeedback[message.id] === 'not_helpful'
+                              ? 'bg-red-100 text-red-700'
+                              : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                          }`}
+                          title="Not helpful"
+                        >
+                          <ThumbsDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      {!message.suggestedChange?.detected && (
+                        <button
+                          onClick={() => reportGap(message.id)}
+                          className="flex items-center text-xs text-orange-600 hover:text-orange-700"
+                        >
+                          <AlertCircle className="w-3 h-3 mr-1" />
+                          Report Gap
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -894,80 +877,6 @@ export default function ChatInterfacePersistent() {
 
       {/* Input */}
       <div className="bg-white border-t border-gray-200 p-4">
-        {/* Response Mode Selector */}
-        <div className="mb-3 flex items-center justify-between">
-          <div className="relative" ref={responseModeRef}>
-            <button
-              type="button"
-              onClick={() => setShowResponseModeSelector(!showResponseModeSelector)}
-              className="flex items-center space-x-2 px-3 py-1 text-sm text-black bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-            >
-              {responseMode === 'quick' && <Zap className="w-4 h-4 text-yellow-600" />}
-              {responseMode === 'standard' && <Settings className="w-4 h-4 text-blue-600" />}
-              {responseMode === 'comprehensive' && <Brain className="w-4 h-4 text-purple-600" />}
-              <span className="capitalize">{responseMode} Mode</span>
-              <ChevronDown className="w-3 h-3" />
-            </button>
-
-            {showResponseModeSelector && (
-              <div className="absolute bottom-full mb-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-64">
-                <div className="p-2 space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => { setResponseMode('quick'); setShowResponseModeSelector(false); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                      responseMode === 'quick' ? 'bg-yellow-50 text-yellow-700' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <Zap className="w-4 h-4 text-yellow-600" />
-                      <div>
-                        <div className="font-medium text-black">Quick Answer</div>
-                        <div className="text-xs text-black">Fast, concise responses using single most relevant SOP</div>
-                      </div>
-                    </div>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => { setResponseMode('standard'); setShowResponseModeSelector(false); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                      responseMode === 'standard' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <Settings className="w-4 h-4 text-blue-600" />
-                      <div>
-                        <div className="font-medium text-black">Standard Answer</div>
-                        <div className="text-xs text-black">Balanced responses that combine multiple SOPs</div>
-                      </div>
-                    </div>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => { setResponseMode('comprehensive'); setShowResponseModeSelector(false); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                      responseMode === 'comprehensive' ? 'bg-purple-50 text-purple-700' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <Brain className="w-4 h-4 text-purple-600" />
-                      <div>
-                        <div className="font-medium text-black">Comprehensive Answer</div>
-                        <div className="text-xs text-black">Detailed analysis with step-by-step reasoning</div>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="text-xs text-black">
-            Choose response detail level
-          </div>
-        </div>
         
         <form onSubmit={handleSubmit} className="flex space-x-2">
           <input
