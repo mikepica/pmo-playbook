@@ -16,7 +16,6 @@ processing:
   # Primary model for all operations
   model: "gpt-4o"
   temperature: 0.3
-  max_tokens: 50000
   max_response_words: 1500
   
   # XML structure processing
@@ -97,26 +96,14 @@ sop_directory:
   update_on_sop_delete: true
 
 # ============================================================================
-# CONTEXT MANAGEMENT - Handle conversation history and token limits
+# CONTEXT MANAGEMENT - Handle conversation history
 # ============================================================================
 
 context_management:
   # Conversation history settings
   conversation_history:
-    max_messages: 6  # Keep last 6 message pairs in context
     summarize_older: true  # Summarize older messages when needed
     summary_max_words: 100  # Max words for conversation summaries
-    
-  # Token limit management
-  token_limits:
-    soft_limit: 6000  # Start optimizing context at this point
-    hard_limit: 8000  # Maximum tokens allowed
-    warning_threshold: 7000  # Warn user when approaching limit
-    
-  # What to do when hitting context limits
-  overflow_strategy:
-    method: "chain_of_thought_with_summarization"
-    priority_order: ["current_query", "sop_content", "conversation_summary"]
     
   # Progressive context expansion for comprehensive mode
   progressive_expansion:
@@ -168,7 +155,6 @@ session_management:
   # Model for generating session summaries
   summary_model: "gpt-4o-mini"
   summary_temperature: 0.3
-  summary_max_tokens: 20
 
 # ============================================================================
 # FEATURE FLAGS - Enable/disable specific features
@@ -214,9 +200,7 @@ environments:
       log_xml_processing: false
       log_context_usage: false
       log_coverage_analysis: false
-    context_management:
-      token_limits:
-        hard_limit: 7500  # Slightly more conservative
+    # No token limits in production
     escape_hatch:
       trigger_threshold: 0.5  # Higher threshold for production
     prompts_config:

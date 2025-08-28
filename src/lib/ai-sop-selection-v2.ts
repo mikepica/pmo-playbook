@@ -48,17 +48,16 @@ export async function selectBestSOPs(userQuery: string): Promise<SOPSelectionRes
   
   // Convert to summary format for compatibility
   const sopSummaries = humanSOPs.map(sop => {
-      const contentExcerpt = sop.data.markdownContent
+      const fullContent = sop.data.markdownContent
         .replace(/^#.*$/gm, '') // Remove headers
         .replace(/\n\s*\n/g, ' ') // Collapse whitespace
         .trim()
-        .substring(0, 300)
         .replace(/\s+/g, ' ');
       
       return {
         sopId: sop.sopId,
         title: sop.data.title,
-        summary: contentExcerpt + '...',
+        summary: fullContent,
         keywords: [], // Human SOPs don't have extracted keywords
         keyActivities: [], // Human SOPs don't have extracted activities
         deliverables: [] // Human SOPs don't have extracted deliverables

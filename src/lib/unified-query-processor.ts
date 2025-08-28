@@ -156,16 +156,15 @@ async function analyzeSopsWithXML(
 
     // Build SOP summaries for analysis
     const sopSummaries = humanSOPs.map(sop => {
-      const contentExcerpt = sop.data.markdownContent
+      const fullContent = sop.data.markdownContent
         .replace(/^#.*$/gm, '') // Remove headers
         .replace(/\n\s*\n/g, ' ') // Collapse whitespace
         .trim()
-        .substring(0, 400)
         .replace(/\s+/g, ' ');
       
       return `- SOP ID: ${sop.sopId}
    Title: "${sop.data.title}"
-   Content Preview: "${contentExcerpt}..."`;
+   Full Content: "${fullContent}"`;
     }).join('\n\n');
 
     // Get prompts from configuration
@@ -200,7 +199,7 @@ ${sopSummaries}`;
         { role: 'user', content: fullPrompt }
       ],
       temperature: config.sop_selection?.temperature || config.processing?.temperature || 0.2,
-      max_tokens: 2000
+      max_tokens: 8000
     });
 
     const xmlContent = response.choices[0]?.message?.content;
@@ -263,7 +262,7 @@ async function generateUnifiedAnswer(
   
   try {
     const config = getAIConfig();
-    const systemPrompt = getPrompt('system_base');
+    const systemPrompt = getPrompt('system_answer');
     const generationPrompt = getPrompt('answer_generation_unified');
     
     // Get full SOP content for referenced SOPs
@@ -337,7 +336,7 @@ ${sopContentString}`;
         { role: 'user', content: fullPrompt }
       ],
       temperature: config.processing?.temperature || 0.3,
-      max_tokens: config.processing?.max_tokens || 2000
+      max_tokens: config.processing?.max_tokens || 8000
     });
 
     const answer = response.choices[0]?.message?.content;
@@ -375,7 +374,7 @@ export async function processQuery(
   let totalTokensUsed = 0;
 
   debugLog('log_xml_processing', 'Starting unified query processing', { 
-    query: userQuery.substring(0, 100) + '...',
+    query: userQuery,
     contextLength: conversationContext.length 
   });
 

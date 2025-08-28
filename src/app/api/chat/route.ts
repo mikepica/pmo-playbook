@@ -23,10 +23,9 @@ export async function POST(request: Request) {
     try {
       const existingChat = await ChatHistory.findBySessionId(currentSessionId);
       if (existingChat && existingChat.data.messages.length > 0) {
-        // Get last 6 messages for context (3 exchanges)
+        // Get all messages for full context
         conversationContext = existingChat.data.messages
           .filter(msg => msg.role !== 'system')
-          .slice(-6)  // Last 6 messages for context
           .map(msg => ({
             role: msg.role as 'user' | 'assistant',
             content: msg.content
@@ -38,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     debugLog('log_xml_processing', 'Processing query with unified system', { 
-      message: message.substring(0, 100) + '...', 
+      message: message, 
       sessionId: currentSessionId,
       contextLength: conversationContext.length
     });

@@ -47,16 +47,15 @@ export async function selectBestSOP(userQuery: string): Promise<SOPSelectionResu
     // Format SOPs for AI analysis - use title and content excerpt
     const sopList = humanSOPs.map(sop => {
       // Extract first 200 characters of content for context
-      const contentExcerpt = sop.data.markdownContent
+      const fullContent = sop.data.markdownContent
         .replace(/^#.*$/gm, '') // Remove headers
         .replace(/\n\s*\n/g, ' ') // Collapse whitespace
         .trim()
-        .substring(0, 200)
         .replace(/\s+/g, ' ');
       
       return `- sopId: ${sop.sopId}
    title: "${sop.data.title}" 
-   content_excerpt: "${contentExcerpt}..."`;
+   full_content: "${fullContent}"`;
     }).join('\n\n');
 
     const prompt = `You are an expert PMO assistant with extensive project management knowledge. A user has asked: "${userQuery}"
@@ -167,7 +166,7 @@ export async function generateAnswer(
     let conversationHistory = '';
     if (conversationContext && conversationContext.length > 0) {
       conversationHistory = '\n\nConversation History (for context only):\n' + 
-        conversationContext.slice(-4).map(msg => // Only include last 4 messages
+        conversationContext.map(msg => // Include all messages
           `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
         ).join('\n') + '\n';
     }
@@ -251,7 +250,7 @@ export async function generateGeneralAnswer(
     let conversationHistory = '';
     if (conversationContext && conversationContext.length > 0) {
       conversationHistory = '\n\nConversation History (for context only):\n' + 
-        conversationContext.slice(-4).map(msg => // Only include last 4 messages
+        conversationContext.map(msg => // Include all messages
           `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
         ).join('\n') + '\n';
     }

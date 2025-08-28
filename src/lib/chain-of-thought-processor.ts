@@ -247,11 +247,10 @@ export class ChainOfThoughtProcessor {
         // Get available SOPs
         const sops = await HumanSOP.getAllActiveSOPs();
         const sopSummaries = sops.map(sop => {
-          const excerpt = sop.data.markdownContent
-            .substring(0, 300)
+          const fullContent = sop.data.markdownContent
             .replace(/\n\s*\n/g, ' ')
             .trim();
-          return `- SOP ID: ${sop.sopId}\n  Title: ${sop.data.title}\n  Content excerpt: ${excerpt}...`;
+          return `- SOP ID: ${sop.sopId}\n  Title: ${sop.data.title}\n  Full content: ${fullContent}`;
         }).join('\n\n');
 
         prompt += `Available SOPs:\n${sopSummaries}\n\n`;
