@@ -2,150 +2,49 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
 
-// Type definitions for the configuration
-
-export interface RefinementConfig {
-  enabled: boolean;
-  max_iterations: number;
-  refinement_steps: string[];
-  confidence_threshold: number;
-  improvement_threshold: number;
-  timeout_per_iteration_ms: number;
-}
-
-export interface ResponseModeConfig {
-  name: string;
-  description: string;
-  llm?: string;  // Optional - only required for non-chain-of-thought modes
-  max_response_words: number;
-  max_tokens?: number;  // Optional - for OpenAI API calls
-  temperature?: number;  // Optional - only required for non-chain-of-thought modes
-  chain_of_thought: boolean;
-  reasoning_steps?: string[];
-  refinement?: RefinementConfig;
-}
-
-export interface ChainOfThoughtStage {
-  description: string;
+// Essential type definitions
+export interface SOPSelectionConfig {
   llm: string;
-  temperature: number;
+  selection_method: string;
+  min_confidence: number;
+  prefer_recent_sops: boolean;
 }
 
-export interface ChainOfThoughtConfig {
-  enabled: boolean;
-  stages: {
-    analyze_query: ChainOfThoughtStage;
-    research_sops: ChainOfThoughtStage;
-    synthesize_answer: ChainOfThoughtStage;
-    validate_response: ChainOfThoughtStage;
-  };
-}
-
-export interface SOPDirectoryConfig {
-  auto_generate: boolean;
-  directory_file: string;
-  include_topics: boolean;
-  include_relationships: boolean;
-  include_summaries: boolean;
-  include_keywords: boolean;
-  editable_in_admin: boolean;
-  update_on_sop_create: boolean;
-  update_on_sop_edit: boolean;
-  update_on_sop_delete: boolean;
-}
-
-export interface ContextManagementConfig {
-  conversation_history: {
-    max_messages: number;
-    summarize_older: boolean;
-    summary_max_words: number;
-  };
-  token_limits: {
-    soft_limit: number;
-    hard_limit: number;
-    warning_threshold: number;
-  };
-  overflow_strategy: {
-    method: string;
-    priority_order: string[];
-  };
-  progressive_expansion: {
-    enabled: boolean;
-    initial_sops: number;
-    max_expansion_sops: number;
-    expansion_threshold: number;
-  };
-}
-
-export interface FeedbackSystemConfig {
-  auto_comprehensive_on_thumbs_down: boolean;
-  confidence_thresholds: {
-    high: number;
-    medium: number;
-    low: number;
-  };
-  auto_suggest_comprehensive: boolean;
-}
-
-export interface MultiSOPConfig {
-  enabled: boolean;
-  max_sops_per_query: number;
-  min_relevance_score: number;
-  combination_strategy: 'hierarchical' | 'equal_weight' | 'primary_focused' | 'semantic_weighted';
-  allow_cross_references: boolean;
-  overlap_handling: 'merge' | 'dedupe' | 'separate' | 'intelligent';
-  relationship_detection?: boolean;
-  context_merging?: 'smart' | 'simple';
-}
-
-export interface AIModeConfig {
+export interface ProcessingConfig {
   model: string;
   temperature: number;
   max_tokens: number;
-  system_prompt: string;
-  user_prompt_template: string;
-  strategy?: 'single_select' | 'multi_select';
-  scoring_algorithm?: string;
-  combination_method?: 'synthesized' | 'sequential' | 'layered';
-  expertise_areas?: string[];
+  max_response_words: number;
 }
 
-export interface FlowConfig {
-  confidence_threshold: number;
-  conversation_history_limit: number;
-  fallback_to_general: boolean;
-  enable_cross_topic_queries: boolean;
-  max_context_tokens: number;
-  routing: {
-    prefer_multi_sop: boolean;
-    general_knowledge_threshold: number;
-  };
+export interface EscapeHatchConfig {
+  trigger_threshold: number;
+  message_template: string;
+  show_partial_info: boolean;
+  request_feedback: boolean;
+  feedback_prompt: string;
 }
 
-export interface ContentConfig {
-  sop_context_fields: string[];
-  include_cross_references: boolean;
-  show_topic_relationships: boolean;
-  add_best_practices: boolean;
-  use_parser_metadata?: boolean;
-  deduplicate_content?: boolean;
-  merge_similar_sections?: boolean;
+export interface DefaultsConfig {
+  primary_model: string;
+  lightweight_model: string;
+  creative_temperature: number;
+  analytical_temperature: number;
 }
 
-export interface SemanticAnalysisConfig {
-  enabled: boolean;
-  use_quality_scores: boolean;
-  format_aware: boolean;
-  relationship_threshold: number;
-  topic_clustering: boolean;
-  content_similarity_threshold: number;
+export interface FeatureFlags {
+  enable_multi_sop: boolean;
+  enable_cross_references: boolean;
+  enable_conversation_memory: boolean;
+  enable_confidence_routing: boolean;
+  enable_template_variables: boolean;
+  enable_hot_reload: boolean;
 }
 
-export interface ValidationConfig {
-  max_total_tokens: number;
-  min_confidence_score: number;
-  max_conversation_history: number;
-  required_sop_fields: string[];
+export interface SessionManagementConfig {
+  summary_model: string;
+  summary_temperature: number;
+  summary_max_tokens: number;
 }
 
 export interface DebugConfig {
@@ -158,122 +57,10 @@ export interface DebugConfig {
   log_context_usage: boolean;
 }
 
-export interface FeatureFlags {
-  enable_multi_sop: boolean;
-  enable_cross_references: boolean;
-  enable_conversation_memory: boolean;
-  enable_confidence_routing: boolean;
-  enable_template_variables: boolean;
-  enable_hot_reload: boolean;
-}
-
-export interface SOPSelectionResult {
-  strategy: 'multi_sop' | 'single_sop' | 'general_knowledge';
-  selectedSops: Array<{
-    sopId: string;
-    confidence: number;
-    role: 'primary' | 'supporting' | 'reference';
-    reasoning: string;
-  }>;
-  overallConfidence: number;
-  reasoning: string;
-}
-
-export interface SOPGenerationResult {
-  answer: string;
-  sopSources: Array<{
-    sopId: string;
-    contribution: string;
-  }>;
-  crossReferences: Array<{
-    relationship: 'depends_on' | 'leads_to' | 'complements';
-    description: string;
-  }>;
-}
-
-export interface GeneralKnowledgeResult {
-  answer: string;
-  methodologies: string[];
-  recommendedTools: string[];
-  bestPractices: string[];
-}
-
-export interface SOPSelectionConfig {
-  llm: string;
-  selection_method: string;
-  min_confidence: number;
-  prefer_recent_sops: boolean;
-  multi_sop: MultiSOPConfig;
-}
-
-export interface SessionManagementConfig {
-  summary_model: string;
-  summary_temperature: number;
-  summary_max_tokens: number;
-}
-
-export interface DefaultsConfig {
-  primary_model: string;
-  lightweight_model: string;
-  creative_temperature: number;
-  analytical_temperature: number;
-}
-
-// New interfaces for unified configuration
-export interface ProcessingConfig {
-  model: string;
-  temperature: number;
-  max_tokens: number;
-  max_response_words: number;
-  xml_processing: {
-    enabled: boolean;
-    validate_structure: boolean;
-  };
-  coverage_thresholds: {
-    high_confidence: number;
-    medium_confidence: number;
-    low_confidence: number;
-  };
-}
-
-export interface EscapeHatchConfig {
-  trigger_threshold: number;
-  message_template: string;
-  show_partial_info: boolean;
-  request_feedback: boolean;
-  feedback_prompt: string;
-}
-
-// New interfaces for split configuration files
-export interface PromptsConfig {
-  active_prompt_set: string;
-  prompt_sets: Record<string, {
-    response_modes?: {
-      quick?: { name: string; description: string; };
-      standard?: { name: string; description: string; };
-      comprehensive?: { name: string; description: string; };
-    };
-    chain_of_thought_stages?: Record<string, { description: string; }>;
-    prompts: Record<string, string>;
-  }>;
-  prompt_set_metadata?: Record<string, {
-    name: string;
-    description: string;
-    target_audience: string;
-  }>;
-}
-
 export interface SystemConfig {
-  prompts_config: {
-    file: string;
-    active_prompt_set: string;
-  };
   processing: ProcessingConfig;
   escape_hatch: EscapeHatchConfig;
   defaults?: DefaultsConfig;
-  sop_directory: SOPDirectoryConfig;
-  context_management: ContextManagementConfig;
-  feedback_system: FeedbackSystemConfig;
   sop_selection: SOPSelectionConfig;
   session_management?: SessionManagementConfig;
   features: FeatureFlags;
@@ -281,40 +68,23 @@ export interface SystemConfig {
   environments?: Record<string, Partial<SystemConfig>>;
 }
 
+export interface PromptsConfig {
+  active_prompt_set: string;
+  prompt_sets: Record<string, {
+    prompts: Record<string, string>;
+  }>;
+}
+
 export interface AIConfig {
   processing: ProcessingConfig;
   escape_hatch: EscapeHatchConfig;
   defaults?: DefaultsConfig;
-  sop_directory: SOPDirectoryConfig;
-  context_management: ContextManagementConfig;
-  feedback_system: FeedbackSystemConfig;
   sop_selection: SOPSelectionConfig;
   session_management?: SessionManagementConfig;
   prompts: Record<string, string>;
   features: FeatureFlags;
   debug: DebugConfig;
   environments?: Record<string, Partial<AIConfig>>;
-  
-  // Legacy support for backward compatibility
-  response_modes?: {
-    quick: ResponseModeConfig;
-    standard: ResponseModeConfig;
-    comprehensive: ResponseModeConfig;
-  };
-  default_response_mode?: string;
-  chain_of_thought?: ChainOfThoughtConfig;
-  models?: any;
-  multi_sop?: MultiSOPConfig;
-  modes?: {
-    sop_selection: AIModeConfig;
-    sop_generation: AIModeConfig;
-    general_knowledge: AIModeConfig;
-    session_summary: AIModeConfig;
-  };
-  flow?: FlowConfig;
-  content?: ContentConfig;
-  semantic_analysis?: SemanticAnalysisConfig;
-  validation?: ValidationConfig;
 }
 
 class AIConfigManager {
@@ -323,12 +93,10 @@ class AIConfigManager {
   private systemConfigPath: string;
   private promptsConfigPath: string;
   private lastModified: number = 0;
-  private legacyConfigPath: string;
 
   private constructor() {
     this.systemConfigPath = path.resolve(process.cwd(), 'ai-system.yaml');
     this.promptsConfigPath = path.resolve(process.cwd(), 'ai-prompts.yaml');
-    this.legacyConfigPath = path.resolve(process.cwd(), 'ai-config.yaml');
   }
 
   public static getInstance(): AIConfigManager {
@@ -338,125 +106,62 @@ class AIConfigManager {
     return AIConfigManager.instance;
   }
 
-  /**
-   * Load and parse the AI configuration files (system + prompts)
-   */
   public loadConfig(environment?: string): AIConfig {
     try {
-      // Check if new split configuration files exist
       const systemExists = fs.existsSync(this.systemConfigPath);
       const promptsExists = fs.existsSync(this.promptsConfigPath);
-      const legacyExists = fs.existsSync(this.legacyConfigPath);
 
-      if (systemExists && promptsExists) {
-        // Use new split configuration
-        return this.loadSplitConfig(environment);
-      } else if (legacyExists) {
-        // Fallback to legacy configuration
-        console.log('⚠️ Using legacy ai-config.yaml file. Consider migrating to ai-system.yaml + ai-prompts.yaml');
-        return this.loadLegacyConfig(environment);
-      } else {
-        throw new Error('No configuration files found. Expected either ai-system.yaml + ai-prompts.yaml or ai-config.yaml');
+      if (!systemExists || !promptsExists) {
+        throw new Error('Required configuration files not found: ai-system.yaml and ai-prompts.yaml');
       }
+
+      return this.loadSplitConfig(environment);
     } catch (error) {
-      console.error('❌ Failed to load AI configuration:', error);
+      console.error('Failed to load AI configuration:', error);
       throw new Error(`AI configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  /**
-   * Load configuration from split files (ai-system.yaml + ai-prompts.yaml)
-   */
   private loadSplitConfig(environment?: string): AIConfig {
     const systemStats = fs.statSync(this.systemConfigPath);
     const promptsStats = fs.statSync(this.promptsConfigPath);
     const currentModified = Math.max(systemStats.mtime.getTime(), promptsStats.mtime.getTime());
 
-    // Check if we need to reload (files changed or first load)
     if (!this.config || currentModified > this.lastModified) {
-      console.log('🔄 Loading AI configuration from split files...');
+      console.log('Loading AI configuration...');
       
-      // Load system configuration
       const systemContents = fs.readFileSync(this.systemConfigPath, 'utf8');
       const systemConfig = yaml.load(systemContents) as SystemConfig;
       
-      // Load prompts configuration
       const promptsContents = fs.readFileSync(this.promptsConfigPath, 'utf8');
       const promptsConfig = yaml.load(promptsContents) as PromptsConfig;
       
-      // Merge configurations
       this.config = this.mergeSplitConfigs(systemConfig, promptsConfig);
       
-      // Process variable interpolations
-      this.config = this.processVariables(this.config);
-      
-      // Apply environment overrides
       if (environment && systemConfig.environments?.[environment]) {
         this.config = this.mergeEnvironmentConfig(this.config, environment, systemConfig.environments[environment]);
       }
 
-      // Validate configuration
       this.validateConfig(this.config);
-      
       this.lastModified = currentModified;
-      console.log('✅ AI configuration loaded successfully from split files');
+      console.log('AI configuration loaded successfully');
     }
 
     return this.config;
   }
 
-  /**
-   * Load configuration from legacy single file (ai-config.yaml)
-   */
-  private loadLegacyConfig(environment?: string): AIConfig {
-    const stats = fs.statSync(this.legacyConfigPath);
-    const currentModified = stats.mtime.getTime();
-
-    // Check if we need to reload (file changed or first load)
-    if (!this.config || currentModified > this.lastModified) {
-      console.log('🔄 Loading AI configuration from legacy file...');
-      
-      const fileContents = fs.readFileSync(this.legacyConfigPath, 'utf8');
-      const rawConfig = yaml.load(fileContents) as AIConfig;
-      
-      // Process variable interpolations
-      this.config = this.processVariables(rawConfig);
-      
-      // Apply environment overrides
-      if (environment && this.config.environments?.[environment]) {
-        this.config = this.mergeEnvironmentConfig(this.config, environment);
-      }
-
-      // Validate configuration
-      this.validateConfig(this.config);
-      
-      this.lastModified = currentModified;
-      console.log('✅ AI configuration loaded successfully from legacy file');
-    }
-
-    return this.config;
-  }
-
-  /**
-   * Merge system and prompts configurations into unified AIConfig
-   */
   private mergeSplitConfigs(systemConfig: SystemConfig, promptsConfig: PromptsConfig): AIConfig {
-    // Determine which prompt set to use
-    const activePromptSet = systemConfig.prompts_config?.active_prompt_set || promptsConfig.active_prompt_set || 'default';
+    const activePromptSet = promptsConfig.active_prompt_set || 'default';
     const activePrompts = promptsConfig.prompt_sets[activePromptSet];
     
     if (!activePrompts) {
       throw new Error(`Active prompt set '${activePromptSet}' not found in prompts configuration`);
     }
 
-    // Build final merged configuration with new unified structure
-    const mergedConfig: AIConfig = {
+    return {
       processing: systemConfig.processing,
       escape_hatch: systemConfig.escape_hatch,
       defaults: systemConfig.defaults,
-      sop_directory: systemConfig.sop_directory,
-      context_management: systemConfig.context_management,
-      feedback_system: systemConfig.feedback_system,
       sop_selection: systemConfig.sop_selection,
       session_management: systemConfig.session_management,
       prompts: activePrompts.prompts,
@@ -464,42 +169,8 @@ class AIConfigManager {
       debug: systemConfig.debug,
       environments: systemConfig.environments as Record<string, Partial<AIConfig>>
     };
-
-    return mergedConfig;
   }
 
-  /**
-   * Process variable interpolations like {{models.primary}}
-   */
-  private processVariables(config: any): AIConfig {
-    const processed = JSON.parse(JSON.stringify(config));
-    
-    const interpolate = (obj: any, context: any) => {
-      for (const key in obj) {
-        if (typeof obj[key] === 'string') {
-          obj[key] = obj[key].replace(/\{\{([^}]+)\}\}/g, (match: string, path: string) => {
-            return this.getNestedValue(context, path) || match;
-          });
-        } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-          interpolate(obj[key], context);
-        }
-      }
-    };
-
-    interpolate(processed, processed);
-    return processed;
-  }
-
-  /**
-   * Get nested object value by dot notation path
-   */
-  private getNestedValue(obj: any, path: string): any {
-    return path.split('.').reduce((current, prop) => current?.[prop], obj);
-  }
-
-  /**
-   * Merge environment-specific configuration
-   */
   private mergeEnvironmentConfig(baseConfig: AIConfig, environment: string, envConfig?: Partial<SystemConfig>): AIConfig {
     const envOverrides = envConfig || baseConfig.environments?.[environment];
     if (!envOverrides) return baseConfig;
@@ -507,9 +178,6 @@ class AIConfigManager {
     return this.deepMerge(baseConfig, envOverrides) as AIConfig;
   }
 
-  /**
-   * Deep merge two objects
-   */
   private deepMerge(target: any, source: any): any {
     const result = { ...target };
     
@@ -524,11 +192,7 @@ class AIConfigManager {
     return result;
   }
 
-  /**
-   * Validate the configuration structure and values
-   */
   private validateConfig(config: AIConfig): void {
-    // Required sections for new unified configuration structure
     const requiredSections = ['processing', 'escape_hatch', 'prompts'];
     for (const section of requiredSections) {
       if (!config[section as keyof AIConfig]) {
@@ -536,7 +200,6 @@ class AIConfigManager {
       }
     }
 
-    // Validate processing configuration
     if (config.processing) {
       if (config.processing.temperature < 0 || config.processing.temperature > 2) {
         throw new Error(`Invalid processing temperature: ${config.processing.temperature} (must be 0-2)`);
@@ -545,68 +208,22 @@ class AIConfigManager {
       if (config.processing.max_tokens < 100 || config.processing.max_tokens > 4000) {
         throw new Error(`Invalid max_tokens: ${config.processing.max_tokens} (must be 100-4000)`);
       }
-
-      // Validate coverage thresholds
-      const thresholds = config.processing.coverage_thresholds;
-      if (thresholds) {
-        if (thresholds.high_confidence < 0 || thresholds.high_confidence > 1) {
-          throw new Error(`Invalid high_confidence threshold: ${thresholds.high_confidence} (must be 0-1)`);
-        }
-        if (thresholds.medium_confidence < 0 || thresholds.medium_confidence > 1) {
-          throw new Error(`Invalid medium_confidence threshold: ${thresholds.medium_confidence} (must be 0-1)`);
-        }
-        if (thresholds.low_confidence < 0 || thresholds.low_confidence > 1) {
-          throw new Error(`Invalid low_confidence threshold: ${thresholds.low_confidence} (must be 0-1)`);
-        }
-      }
     }
 
-    // Validate escape hatch configuration
     if (config.escape_hatch) {
       if (config.escape_hatch.trigger_threshold < 0 || config.escape_hatch.trigger_threshold > 1) {
         throw new Error(`Invalid escape_hatch trigger_threshold: ${config.escape_hatch.trigger_threshold} (must be 0-1)`);
       }
     }
-
-    // Validate legacy response modes if they exist (for backward compatibility)
-    if (config.response_modes) {
-      for (const [modeName, modeConfig] of Object.entries(config.response_modes)) {
-        if (modeConfig.temperature !== undefined && (modeConfig.temperature < 0 || modeConfig.temperature > 2)) {
-          throw new Error(`Invalid temperature for legacy mode ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
-        }
-      }
-    }
-
-    // Validate legacy modes if they exist (for backward compatibility)
-    if (config.modes) {
-      for (const [modeName, modeConfig] of Object.entries(config.modes)) {
-        if (modeConfig.temperature !== undefined && (modeConfig.temperature < 0 || modeConfig.temperature > 2)) {
-          throw new Error(`Invalid temperature for legacy mode ${modeName}: ${modeConfig.temperature} (must be 0-2)`);
-        }
-        if (modeConfig.max_tokens < 1 || modeConfig.max_tokens > 4000) {
-          throw new Error(`Invalid max_tokens for legacy mode ${modeName}: ${modeConfig.max_tokens} (must be 1-4000)`);
-        }
-      }
-    }
-
-    // Validate legacy flow settings if they exist
-    if (config.flow?.confidence_threshold !== undefined) {
-      if (config.flow.confidence_threshold < 0 || config.flow.confidence_threshold > 1) {
-        throw new Error(`Invalid confidence_threshold: ${config.flow.confidence_threshold} (must be 0-1)`);
-      }
-    }
-
-    // Validate legacy multi-SOP settings if they exist
-    if (config.multi_sop?.max_sops_per_query !== undefined) {
-      if (config.multi_sop.max_sops_per_query < 1 || config.multi_sop.max_sops_per_query > 5) {
-        throw new Error(`Invalid max_sops_per_query: ${config.multi_sop.max_sops_per_query} (must be 1-5)`);
-      }
-    }
   }
 
-  /**
-   * Get a specific prompt by name
-   */
+  public getConfig(): AIConfig {
+    if (!this.config) {
+      return this.loadConfig(process.env.NODE_ENV || 'development');
+    }
+    return this.config;
+  }
+
   public getPrompt(promptName: string): string {
     const config = this.getConfig();
     const prompt = config.prompts[promptName];
@@ -616,99 +233,11 @@ class AIConfigManager {
     return prompt;
   }
 
-  /**
-   * Get mode configuration by name
-   */
-  public getModeConfig(modeName: string): AIModeConfig {
-    const config = this.getConfig();
-    if (!config.modes) {
-      throw new Error(`Legacy modes configuration not available. Use response modes instead.`);
-    }
-    const modeConfig = config.modes[modeName as keyof typeof config.modes];
-    if (!modeConfig) {
-      throw new Error(`Mode configuration not found: ${modeName}`);
-    }
-    return modeConfig;
-  }
-
-  /**
-   * Get current configuration (load if not already loaded)
-   */
-  public getConfig(): AIConfig {
-    if (!this.config) {
-      return this.loadConfig(process.env.NODE_ENV || 'development');
-    }
-    return this.config;
-  }
-
-  /**
-   * Force reload configuration (useful for hot-reload in development)
-   */
-  public reloadConfig(): AIConfig {
-    this.config = null;
-    this.lastModified = 0;
-    return this.loadConfig(process.env.NODE_ENV || 'development');
-  }
-
-  /**
-   * Check if hot-reload is enabled and file has changed
-   */
-  public checkForUpdates(): boolean {
-    const config = this.getConfig();
-    if (!config.features.enable_hot_reload || process.env.NODE_ENV === 'production') {
-      return false;
-    }
-
-    try {
-      // Check both split config files if they exist
-      if (fs.existsSync(this.systemConfigPath) && fs.existsSync(this.promptsConfigPath)) {
-        const systemStats = fs.statSync(this.systemConfigPath);
-        const promptsStats = fs.statSync(this.promptsConfigPath);
-        const latestModified = Math.max(systemStats.mtime.getTime(), promptsStats.mtime.getTime());
-        return latestModified > this.lastModified;
-      } else if (fs.existsSync(this.legacyConfigPath)) {
-        // Check legacy config file
-        const stats = fs.statSync(this.legacyConfigPath);
-        return stats.mtime.getTime() > this.lastModified;
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Get token limits for context management
-   */
-  public getTokenLimits(): { max_context: number; max_total: number } {
-    const config = this.getConfig();
-    
-    // Use new context management if available, fallback to legacy
-    if (config.context_management?.token_limits) {
-      return {
-        max_context: config.context_management.token_limits.soft_limit,
-        max_total: config.context_management.token_limits.hard_limit
-      };
-    }
-    
-    // Fallback to legacy configuration if available
-    return {
-      max_context: config.flow?.max_context_tokens || 6000,
-      max_total: config.validation?.max_total_tokens || 8000
-    };
-  }
-
-  /**
-   * Check if a feature is enabled
-   */
   public isFeatureEnabled(featureName: keyof FeatureFlags): boolean {
     const config = this.getConfig();
     return config.features[featureName] === true;
   }
 
-  /**
-   * Log debug information if enabled
-   */
   public debugLog(category: keyof DebugConfig, message: string, data?: any): void {
     const config = this.getConfig();
     if (config.debug[category]) {
@@ -716,172 +245,10 @@ class AIConfigManager {
     }
   }
 
-  /**
-   * Get response mode configuration
-   */
-  public getResponseModeConfig(mode: 'quick' | 'standard' | 'comprehensive'): ResponseModeConfig {
-    const config = this.getConfig();
-    const modeConfig = config.response_modes?.[mode];
-    if (!modeConfig) {
-      throw new Error(`Response mode not found: ${mode}`);
-    }
-    return modeConfig;
-  }
-
-  /**
-   * Get chain-of-thought configuration
-   */
-  public getChainOfThoughtConfig(): ChainOfThoughtConfig {
-    const config = this.getConfig();
-    if (!config.chain_of_thought) {
-      throw new Error('Chain of thought configuration not found');
-    }
-    return config.chain_of_thought;
-  }
-
-  /**
-   * Get SOP directory configuration
-   */
-  public getSOPDirectoryConfig(): SOPDirectoryConfig {
-    const config = this.getConfig();
-    if (!config.sop_directory) {
-      throw new Error('SOP directory configuration not found');
-    }
-    return config.sop_directory;
-  }
-
-  /**
-   * Get context management configuration
-   */
-  public getContextManagementConfig(): ContextManagementConfig {
-    const config = this.getConfig();
-    if (!config.context_management) {
-      throw new Error('Context management configuration not found');
-    }
-    return config.context_management;
-  }
-
-  /**
-   * Get feedback system configuration
-   */
-  public getFeedbackSystemConfig(): FeedbackSystemConfig {
-    const config = this.getConfig();
-    if (!config.feedback_system) {
-      throw new Error('Feedback system configuration not found');
-    }
-    return config.feedback_system;
-  }
-
-
-  /**
-   * Get SOP selection configuration
-   */
-  public getSOPSelectionConfig(): SOPSelectionConfig {
-    const config = this.getConfig();
-    if (!config.sop_selection) {
-      throw new Error('SOP selection configuration not found');
-    }
-    return config.sop_selection;
-  }
-
-  /**
-   * Get session management configuration
-   */
-  public getSessionManagementConfig(): SessionManagementConfig {
-    const config = this.getConfig();
-    const defaults = this.getDefaultsConfig();
-    if (!config.session_management) {
-      // Return defaults if not configured
-      return {
-        summary_model: defaults.lightweight_model,
-        summary_temperature: defaults.analytical_temperature,
-        summary_max_tokens: 20
-      };
-    }
-    return config.session_management;
-  }
-
-  /**
-   * Get defaults configuration
-   */
-  public getDefaultsConfig(): DefaultsConfig {
-    const config = this.getConfig();
-    if (!config.defaults) {
-      // Hardcoded fallbacks as last resort
-      return {
-        primary_model: 'gpt-4o',
-        lightweight_model: 'gpt-4o-mini',
-        creative_temperature: 0.6,
-        analytical_temperature: 0.3
-      };
-    }
-    return config.defaults;
-  }
-
-  /**
-   * Get processing configuration
-   */
-  public getProcessingConfig(): ProcessingConfig {
-    const config = this.getConfig();
-    if (!config.processing) {
-      throw new Error('Processing configuration not found');
-    }
-    return config.processing;
-  }
-
-  /**
-   * Get escape hatch configuration
-   */
-  public getEscapeHatchConfig(): EscapeHatchConfig {
-    const config = this.getConfig();
-    if (!config.escape_hatch) {
-      throw new Error('Escape hatch configuration not found');
-    }
-    return config.escape_hatch;
-  }
-
-  /**
-   * Get coverage threshold for a specific level
-   */
-  public getCoverageThreshold(level: 'high' | 'medium' | 'low'): number {
-    const config = this.getProcessingConfig();
-    return config.coverage_thresholds[`${level}_confidence`];
-  }
-
-  /**
-   * Check if XML processing is enabled
-   */
-  public isXMLProcessingEnabled(): boolean {
-    const config = this.getConfig();
-    return config.processing?.xml_processing?.enabled === true;
-  }
-
-  /**
-   * Legacy: Get default response mode (for backward compatibility)
-   */
-  public getDefaultResponseMode(): 'quick' | 'standard' | 'comprehensive' {
-    const config = this.getConfig();
-    const defaultMode = config.default_response_mode || 'standard';
-    if (!['quick', 'standard', 'comprehensive'].includes(defaultMode)) {
-      console.warn(`Invalid default response mode: ${defaultMode}, falling back to standard`);
-      return 'standard';
-    }
-    return defaultMode as 'quick' | 'standard' | 'comprehensive';
-  }
-
-  /**
-   * Legacy: Check if chain of thought is enabled for a response mode (for backward compatibility)
-   */
-  public isChainOfThoughtEnabled(mode?: 'quick' | 'standard' | 'comprehensive'): boolean {
-    const config = this.getConfig();
-    if (!config.chain_of_thought?.enabled) return false;
-    
-    if (mode && config.response_modes) {
-      const modeConfig = this.getResponseModeConfig(mode);
-      return modeConfig.chain_of_thought;
-    }
-    
-    return true;
+  public reloadConfig(): AIConfig {
+    this.config = null;
+    this.lastModified = 0;
+    return this.loadConfig(process.env.NODE_ENV || 'development');
   }
 }
 
@@ -891,28 +258,45 @@ export const aiConfig = AIConfigManager.getInstance();
 // Convenience functions
 export const getAIConfig = () => aiConfig.getConfig();
 export const getPrompt = (name: string) => aiConfig.getPrompt(name);
-export const getModeConfig = (mode: string) => aiConfig.getModeConfig(mode);
 export const isFeatureEnabled = (feature: keyof FeatureFlags) => aiConfig.isFeatureEnabled(feature);
 export const debugLog = (category: keyof DebugConfig, message: string, data?: any) => 
   aiConfig.debugLog(category, message, data);
 
-// New convenience functions for unified configuration
-export const getProcessingConfig = () => aiConfig.getProcessingConfig();
-export const getEscapeHatchConfig = () => aiConfig.getEscapeHatchConfig();
-export const getCoverageThreshold = (level: 'high' | 'medium' | 'low') => 
-  aiConfig.getCoverageThreshold(level);
-export const isXMLProcessingEnabled = () => aiConfig.isXMLProcessingEnabled();
+export const getProcessingConfig = () => {
+  const config = aiConfig.getConfig();
+  return config.processing;
+};
 
-// Legacy convenience functions (for backward compatibility)
-export const getResponseModeConfig = (mode: 'quick' | 'standard' | 'comprehensive') => 
-  aiConfig.getResponseModeConfig(mode);
-export const getChainOfThoughtConfig = () => aiConfig.getChainOfThoughtConfig();
-export const getSOPDirectoryConfig = () => aiConfig.getSOPDirectoryConfig();
-export const getContextManagementConfig = () => aiConfig.getContextManagementConfig();
-export const getFeedbackSystemConfig = () => aiConfig.getFeedbackSystemConfig();
-export const getSOPSelectionConfig = () => aiConfig.getSOPSelectionConfig();
-export const getSessionManagementConfig = () => aiConfig.getSessionManagementConfig();
-export const getDefaultsConfig = () => aiConfig.getDefaultsConfig();
-export const getDefaultResponseMode = () => aiConfig.getDefaultResponseMode();
-export const isChainOfThoughtEnabled = (mode?: 'quick' | 'standard' | 'comprehensive') => 
-  aiConfig.isChainOfThoughtEnabled(mode);
+export const getEscapeHatchConfig = () => {
+  const config = aiConfig.getConfig();
+  return config.escape_hatch;
+};
+
+export const getDefaultsConfig = () => {
+  const config = aiConfig.getConfig();
+  return config.defaults || {
+    primary_model: 'gpt-4o',
+    lightweight_model: 'gpt-4o-mini',
+    creative_temperature: 0.6,
+    analytical_temperature: 0.3
+  };
+};
+
+export const getSOPSelectionConfig = () => {
+  const config = aiConfig.getConfig();
+  return config.sop_selection;
+};
+
+export const getSessionManagementConfig = () => {
+  const config = aiConfig.getConfig();
+  const defaults = getDefaultsConfig();
+  if (!config.session_management) {
+    // Return defaults if not configured
+    return {
+      summary_model: defaults.lightweight_model,
+      summary_temperature: defaults.analytical_temperature,
+      summary_max_tokens: 20
+    };
+  }
+  return config.session_management;
+};

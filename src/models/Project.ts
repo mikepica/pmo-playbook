@@ -1,4 +1,4 @@
-import { PostgresModel } from '@/lib/postgres-model';
+import { PostgresModel } from '@/lib/postgres';
 
 export interface ProjectData {
   projectName: string;
