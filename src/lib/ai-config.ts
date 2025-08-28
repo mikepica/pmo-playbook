@@ -219,6 +219,50 @@ export interface DefaultsConfig {
   analytical_temperature: number;
 }
 
+// New interfaces for split configuration files
+export interface PromptsConfig {
+  active_prompt_set: string;
+  prompt_sets: Record<string, {
+    response_modes?: {
+      quick?: { name: string; description: string; };
+      standard?: { name: string; description: string; };
+      comprehensive?: { name: string; description: string; };
+    };
+    chain_of_thought_stages?: Record<string, { description: string; }>;
+    prompts: Record<string, string>;
+  }>;
+  prompt_set_metadata?: Record<string, {
+    name: string;
+    description: string;
+    target_audience: string;
+  }>;
+}
+
+export interface SystemConfig {
+  prompts_config: {
+    file: string;
+    active_prompt_set: string;
+  };
+  response_modes: {
+    quick: Omit<ResponseModeConfig, 'name' | 'description'>;
+    standard: Omit<ResponseModeConfig, 'name' | 'description'>;
+    comprehensive: Omit<ResponseModeConfig, 'name' | 'description'>;
+  };
+  default_response_mode: string;
+  defaults?: DefaultsConfig;
+  chain_of_thought: Omit<ChainOfThoughtConfig, 'stages'> & {
+    stages: Record<string, Omit<ChainOfThoughtStage, 'description'>>;
+  };
+  sop_directory: SOPDirectoryConfig;
+  context_management: ContextManagementConfig;
+  feedback_system: FeedbackSystemConfig;
+  sop_selection: SOPSelectionConfig;
+  session_management?: SessionManagementConfig;
+  features: FeatureFlags;
+  debug: DebugConfig;
+  environments?: Record<string, Partial<SystemConfig>>;
+}
+
 export interface AIConfig {
   response_modes: {
     quick: ResponseModeConfig;
@@ -256,11 +300,15 @@ export interface AIConfig {
 class AIConfigManager {
   private static instance: AIConfigManager;
   private config: AIConfig | null = null;
-  private configPath: string;
+  private systemConfigPath: string;
+  private promptsConfigPath: string;
   private lastModified: number = 0;
+  private legacyConfigPath: string;
 
   private constructor() {
-    this.configPath = path.resolve(process.cwd(), 'ai-config.yaml');
+    this.systemConfigPath = path.resolve(process.cwd(), 'ai-system.yaml');
+    this.promptsConfigPath = path.resolve(process.cwd(), 'ai-prompts.yaml');
+    this.legacyConfigPath = path.resolve(process.cwd(), 'ai-config.yaml');
   }
 
   public static getInstance(): AIConfigManager {
@@ -271,40 +319,168 @@ class AIConfigManager {
   }
 
   /**
-   * Load and parse the AI configuration file
+   * Load and parse the AI configuration files (system + prompts)
    */
   public loadConfig(environment?: string): AIConfig {
     try {
-      const stats = fs.statSync(this.configPath);
-      const currentModified = stats.mtime.getTime();
+      // Check if new split configuration files exist
+      const systemExists = fs.existsSync(this.systemConfigPath);
+      const promptsExists = fs.existsSync(this.promptsConfigPath);
+      const legacyExists = fs.existsSync(this.legacyConfigPath);
 
-      // Check if we need to reload (file changed or first load)
-      if (!this.config || currentModified > this.lastModified) {
-        console.log('🔄 Loading AI configuration...');
-        
-        const fileContents = fs.readFileSync(this.configPath, 'utf8');
-        const rawConfig = yaml.load(fileContents) as AIConfig;
-        
-        // Process variable interpolations
-        this.config = this.processVariables(rawConfig);
-        
-        // Apply environment overrides
-        if (environment && this.config.environments?.[environment]) {
-          this.config = this.mergeEnvironmentConfig(this.config, environment);
-        }
-
-        // Validate configuration
-        this.validateConfig(this.config);
-        
-        this.lastModified = currentModified;
-        console.log('✅ AI configuration loaded successfully');
+      if (systemExists && promptsExists) {
+        // Use new split configuration
+        return this.loadSplitConfig(environment);
+      } else if (legacyExists) {
+        // Fallback to legacy configuration
+        console.log('⚠️ Using legacy ai-config.yaml file. Consider migrating to ai-system.yaml + ai-prompts.yaml');
+        return this.loadLegacyConfig(environment);
+      } else {
+        throw new Error('No configuration files found. Expected either ai-system.yaml + ai-prompts.yaml or ai-config.yaml');
       }
-
-      return this.config;
     } catch (error) {
       console.error('❌ Failed to load AI configuration:', error);
       throw new Error(`AI configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Load configuration from split files (ai-system.yaml + ai-prompts.yaml)
+   */
+  private loadSplitConfig(environment?: string): AIConfig {
+    const systemStats = fs.statSync(this.systemConfigPath);
+    const promptsStats = fs.statSync(this.promptsConfigPath);
+    const currentModified = Math.max(systemStats.mtime.getTime(), promptsStats.mtime.getTime());
+
+    // Check if we need to reload (files changed or first load)
+    if (!this.config || currentModified > this.lastModified) {
+      console.log('🔄 Loading AI configuration from split files...');
+      
+      // Load system configuration
+      const systemContents = fs.readFileSync(this.systemConfigPath, 'utf8');
+      const systemConfig = yaml.load(systemContents) as SystemConfig;
+      
+      // Load prompts configuration
+      const promptsContents = fs.readFileSync(this.promptsConfigPath, 'utf8');
+      const promptsConfig = yaml.load(promptsContents) as PromptsConfig;
+      
+      // Merge configurations
+      this.config = this.mergeSplitConfigs(systemConfig, promptsConfig);
+      
+      // Process variable interpolations
+      this.config = this.processVariables(this.config);
+      
+      // Apply environment overrides
+      if (environment && systemConfig.environments?.[environment]) {
+        this.config = this.mergeEnvironmentConfig(this.config, environment, systemConfig.environments[environment]);
+      }
+
+      // Validate configuration
+      this.validateConfig(this.config);
+      
+      this.lastModified = currentModified;
+      console.log('✅ AI configuration loaded successfully from split files');
+    }
+
+    return this.config;
+  }
+
+  /**
+   * Load configuration from legacy single file (ai-config.yaml)
+   */
+  private loadLegacyConfig(environment?: string): AIConfig {
+    const stats = fs.statSync(this.legacyConfigPath);
+    const currentModified = stats.mtime.getTime();
+
+    // Check if we need to reload (file changed or first load)
+    if (!this.config || currentModified > this.lastModified) {
+      console.log('🔄 Loading AI configuration from legacy file...');
+      
+      const fileContents = fs.readFileSync(this.legacyConfigPath, 'utf8');
+      const rawConfig = yaml.load(fileContents) as AIConfig;
+      
+      // Process variable interpolations
+      this.config = this.processVariables(rawConfig);
+      
+      // Apply environment overrides
+      if (environment && this.config.environments?.[environment]) {
+        this.config = this.mergeEnvironmentConfig(this.config, environment);
+      }
+
+      // Validate configuration
+      this.validateConfig(this.config);
+      
+      this.lastModified = currentModified;
+      console.log('✅ AI configuration loaded successfully from legacy file');
+    }
+
+    return this.config;
+  }
+
+  /**
+   * Merge system and prompts configurations into unified AIConfig
+   */
+  private mergeSplitConfigs(systemConfig: SystemConfig, promptsConfig: PromptsConfig): AIConfig {
+    // Determine which prompt set to use
+    const activePromptSet = systemConfig.prompts_config?.active_prompt_set || promptsConfig.active_prompt_set || 'default';
+    const activePrompts = promptsConfig.prompt_sets[activePromptSet];
+    
+    if (!activePrompts) {
+      throw new Error(`Active prompt set '${activePromptSet}' not found in prompts configuration`);
+    }
+
+    // Merge response mode configurations (technical settings + descriptions)
+    const mergedResponseModes = {
+      quick: {
+        ...systemConfig.response_modes.quick,
+        name: activePrompts.response_modes?.quick?.name || 'Quick Answer',
+        description: activePrompts.response_modes?.quick?.description || 'Fast responses'
+      } as ResponseModeConfig,
+      standard: {
+        ...systemConfig.response_modes.standard,
+        name: activePrompts.response_modes?.standard?.name || 'Standard Answer',
+        description: activePrompts.response_modes?.standard?.description || 'Balanced responses'
+      } as ResponseModeConfig,
+      comprehensive: {
+        ...systemConfig.response_modes.comprehensive,
+        name: activePrompts.response_modes?.comprehensive?.name || 'Comprehensive Answer',
+        description: activePrompts.response_modes?.comprehensive?.description || 'Detailed analysis'
+      } as ResponseModeConfig
+    };
+
+    // Merge chain of thought configurations
+    const mergedChainOfThought: ChainOfThoughtConfig = {
+      ...systemConfig.chain_of_thought,
+      stages: {}
+    };
+
+    // Add descriptions to chain of thought stages
+    for (const [stageKey, stageConfig] of Object.entries(systemConfig.chain_of_thought.stages)) {
+      const stageDescription = activePrompts.chain_of_thought_stages?.[stageKey]?.description || `${stageKey} stage`;
+      mergedChainOfThought.stages[stageKey as keyof typeof mergedChainOfThought.stages] = {
+        ...stageConfig,
+        description: stageDescription
+      } as ChainOfThoughtStage;
+    }
+
+    // Build final merged configuration
+    const mergedConfig: AIConfig = {
+      response_modes: mergedResponseModes,
+      default_response_mode: systemConfig.default_response_mode,
+      defaults: systemConfig.defaults,
+      chain_of_thought: mergedChainOfThought,
+      sop_directory: systemConfig.sop_directory,
+      context_management: systemConfig.context_management,
+      feedback_system: systemConfig.feedback_system,
+      sop_selection: systemConfig.sop_selection,
+      session_management: systemConfig.session_management,
+      prompts: activePrompts.prompts,
+      features: systemConfig.features,
+      debug: systemConfig.debug,
+      environments: systemConfig.environments as Record<string, Partial<AIConfig>>
+    };
+
+    return mergedConfig;
   }
 
   /**
@@ -339,11 +515,11 @@ class AIConfigManager {
   /**
    * Merge environment-specific configuration
    */
-  private mergeEnvironmentConfig(baseConfig: AIConfig, environment: string): AIConfig {
-    const envConfig = baseConfig.environments?.[environment];
-    if (!envConfig) return baseConfig;
+  private mergeEnvironmentConfig(baseConfig: AIConfig, environment: string, envConfig?: Partial<SystemConfig>): AIConfig {
+    const envOverrides = envConfig || baseConfig.environments?.[environment];
+    if (!envOverrides) return baseConfig;
 
-    return this.deepMerge(baseConfig, envConfig) as AIConfig;
+    return this.deepMerge(baseConfig, envOverrides) as AIConfig;
   }
 
   /**
@@ -484,8 +660,18 @@ class AIConfigManager {
     }
 
     try {
-      const stats = fs.statSync(this.configPath);
-      return stats.mtime.getTime() > this.lastModified;
+      // Check both split config files if they exist
+      if (fs.existsSync(this.systemConfigPath) && fs.existsSync(this.promptsConfigPath)) {
+        const systemStats = fs.statSync(this.systemConfigPath);
+        const promptsStats = fs.statSync(this.promptsConfigPath);
+        const latestModified = Math.max(systemStats.mtime.getTime(), promptsStats.mtime.getTime());
+        return latestModified > this.lastModified;
+      } else if (fs.existsSync(this.legacyConfigPath)) {
+        // Check legacy config file
+        const stats = fs.statSync(this.legacyConfigPath);
+        return stats.mtime.getTime() > this.lastModified;
+      }
+      return false;
     } catch {
       return false;
     }

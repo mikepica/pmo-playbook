@@ -1,34 +1,67 @@
-# AI System Configuration - User-Friendly Edition
-# This file controls how the AI responds to user questions
-# Make changes here to adjust response quality, speed, and detail level
+# AI System Configuration - Technical Settings
+# 
+# This file contains all technical configurations, models, and system behavior settings.
+# It works together with ai-prompts.yaml to provide complete AI configuration.
+# 
+# FILE RELATIONSHIP:
+# - ai-system.yaml (this file): Technical settings, models, and system behavior
+# - ai-prompts.yaml: All user-customizable text and prompts
+# 
+# USAGE:
+# - Configure LLMs, temperatures, token limits, and system behavior
+# - Reference prompts from ai-prompts.yaml using prompt_config section
+# - Override technical settings per environment (dev/prod/testing)
+# - Control features, debugging, and performance settings
+# 
+# LOADING CONFIGURATION:
+# Your application should:
+# 1. Load this file for technical configuration
+# 2. Load ai-prompts.yaml and merge the active prompt set
+# 3. Use prompts_config.active_prompt_set to determine which prompts to use
+# 
+# Example pseudocode:
+#   system_config = loadYAML("ai-system.yaml")
+#   prompts_config = loadYAML("ai-prompts.yaml")
+#   active_set = system_config.prompts_config.active_prompt_set
+#   active_prompts = prompts_config.prompt_sets[active_set]
+#   final_config = merge(system_config, active_prompts)
+# 
+# ENVIRONMENT SWITCHING:
+# Different environments can use different prompt sets:
+# - development: Use "default" prompts with debug logging
+# - production: Use "default" prompts with minimal logging  
+# - testing: Use "technical" prompts with cheaper models
 
 # ============================================================================
-# RESPONSE MODES - Control how detailed and thorough AI responses are
+# PROMPTS FILE REFERENCE
+# ============================================================================
+
+# Reference to prompts configuration file
+prompts_config:
+  file: "ai-prompts.yaml"
+  active_prompt_set: "default"  # Can be overridden to switch prompt sets
+
+# ============================================================================
+# RESPONSE MODES - Technical configuration only
 # ============================================================================
 
 response_modes:
-  # Quick Mode - Fast, concise answers
+  # Quick Mode - Technical settings
   quick:
-    name: "Quick Answer"
-    description: "Fast responses using available SOPs as needed"
     llm: "gpt-4o-mini"
     max_response_words: 500
     temperature: 0.2
     chain_of_thought: false
     
-  # Standard Mode - Balanced detail level (Default)
+  # Standard Mode - Technical settings (Default)
   standard:
-    name: "Standard Answer"
-    description: "Balanced responses that analyze all relevant SOPs"
     llm: "gpt-4o"
     max_response_words: 1000
     temperature: 0.4
     chain_of_thought: false
     
-  # Comprehensive Mode - Deep analysis with reasoning
+  # Comprehensive Mode - Technical settings
   comprehensive:
-    name: "Comprehensive Answer"
-    description: "Detailed analysis with step-by-step reasoning using all SOPs"
     max_response_words: 2000
     # LLM and temperature controlled via Chain of Thought stages
     chain_of_thought: true
@@ -59,29 +92,25 @@ defaults:
   analytical_temperature: 0.3
 
 # ============================================================================
-# CHAIN-OF-THOUGHT REASONING - For comprehensive responses
+# CHAIN-OF-THOUGHT REASONING - Technical configuration
 # ============================================================================
 
 chain_of_thought:
   enabled: true
   stages:
     analyze_query:
-      description: "Understand what the user is really asking"
       llm: "gpt-4o"
       temperature: 0.3
       
     research_sops:
-      description: "Deep analysis of each relevant SOP"
       llm: "gpt-4o"
       temperature: 0.2
       
     synthesize_answer:
-      description: "Combine insights from multiple SOPs"
       llm: "gpt-4o"
       temperature: 0.4
       
     validate_response:
-      description: "Check completeness and accuracy"
       llm: "gpt-4o"
       temperature: 0.2
 
@@ -174,7 +203,6 @@ feedback_system:
   # Auto-suggest comprehensive mode for low confidence
   auto_suggest_comprehensive: true
 
-
 # ============================================================================
 # SOP SELECTION AND RETRIEVAL
 # ============================================================================
@@ -202,64 +230,6 @@ session_management:
   summary_model: "gpt-4o-mini"
   summary_temperature: 0.3
   summary_max_tokens: 20
-
-# ============================================================================
-# SYSTEM PROMPTS - Core instructions for the AI
-# ============================================================================
-
-prompts:
-  system_base: |
-    You are an expert PMO consultant with 15+ years of experience. You help users with project management questions using company SOPs and general PM expertise. Always provide practical, actionable guidance.
-
-  sop_selection: |
-    Analyze the user's question and identify the most relevant SOPs. Consider the query intent, required depth of response, and cross-topic relationships. Respond with JSON only.
-
-  chain_of_thought_analyze: |
-    Carefully analyze this project management question to understand what the user really needs to know. Consider the context, implied requirements, and potential follow-up questions.
-
-  chain_of_thought_research: |
-    For each relevant SOP, extract the key information that directly addresses the user's question. Focus on actionable steps, deliverables, and practical guidance.
-
-  chain_of_thought_synthesize: |
-    Combine insights from multiple SOPs into a coherent, comprehensive answer. Show how different procedures work together and highlight any dependencies or relationships.
-
-  chain_of_thought_validate: |
-    Review the response for completeness, accuracy, and usefulness. Ensure all aspects of the user's question have been addressed and the guidance is practical.
-
-  general_knowledge_system: |
-    You are an expert PMO consultant with 15+ years of experience. When users ask questions that aren't directly covered by available SOPs, provide helpful project management guidance based on industry best practices. Always respond in JSON format with the following structure:
-    {
-      "answer": "Your comprehensive answer here",
-      "methodologies": ["List of relevant methodologies"],
-      "recommendedTools": ["List of recommended tools"],
-      "bestPractices": ["List of best practices"]
-    }
-
-  general_knowledge_user: |
-    {{userQuery}}
-
-  sop_generation_system: |
-    You are an expert PMO consultant. Answer user questions based on the provided SOP content. Be comprehensive and practical in your responses. Always cite specific sections from the SOPs when relevant.
-
-  sop_generation_user: |
-    Based on the following SOP content, please answer this question: {{userQuery}}
-
-    {{#if primarySOP}}
-    Primary SOP: {{primarySOP.title}}
-    {{primarySOP.content}}
-    {{/if}}
-
-    {{#if supportingSOPs}}
-    Supporting SOPs:
-    {{#each supportingSOPs}}
-    - {{this.title}}
-    {{this.content}}
-    {{/each}}
-    {{/if}}
-
-    {{#if hasConversationHistory}}
-    {{conversationHistory}}
-    {{/if}}
 
 # ============================================================================
 # FEATURE FLAGS - Enable/disable specific features
@@ -296,6 +266,8 @@ environments:
     response_modes:
       quick:
         temperature: 0.3  # Slightly higher for testing
+    prompts_config:
+      active_prompt_set: "default"  # Can use different prompt sets per environment
         
   production:
     debug:
@@ -304,6 +276,8 @@ environments:
     context_management:
       token_limits:
         hard_limit: 7500  # Slightly more conservative
+    prompts_config:
+      active_prompt_set: "default"
         
   testing:
     response_modes:
@@ -325,3 +299,5 @@ environments:
           llm: "gpt-4o-mini"
         validate_response:
           llm: "gpt-4o-mini"
+    prompts_config:
+      active_prompt_set: "technical"  # Use technical prompts for testing
