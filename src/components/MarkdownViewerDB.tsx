@@ -7,9 +7,10 @@ import { Database } from 'lucide-react';
 
 interface MarkdownViewerDBProps {
   selectedSOP: string | null;
+  selectedSlug?: string | null;
 }
 
-export default function MarkdownViewerDB({ selectedSOP }: MarkdownViewerDBProps) {
+export default function MarkdownViewerDB({ selectedSOP, selectedSlug }: MarkdownViewerDBProps) {
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +20,7 @@ export default function MarkdownViewerDB({ selectedSOP }: MarkdownViewerDBProps)
   }>({});
 
   useEffect(() => {
-    if (!selectedSOP) {
+    if (!selectedSOP && !selectedSlug) {
       setContent('');
       setTitle('');
       setMetadata({});
@@ -29,12 +30,14 @@ export default function MarkdownViewerDB({ selectedSOP }: MarkdownViewerDBProps)
     const fetchContent = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/content-db?sopId=${selectedSOP}&type=human`);
+        // Prefer slug over sopId
+        const queryParam = selectedSlug ? `slug=${selectedSlug}` : `sopId=${selectedSOP}`;
+        const response = await fetch(`/api/content-db?${queryParam}&type=human`);
         const data = await response.json();
         
         if (response.ok) {
           setContent(data.content || '');
-          setTitle(data.title || selectedSOP);
+          setTitle(data.title || selectedSlug || selectedSOP || '');
           setMetadata({
             version: data.version,
             updatedAt: data.updatedAt
@@ -53,9 +56,9 @@ export default function MarkdownViewerDB({ selectedSOP }: MarkdownViewerDBProps)
     };
 
     fetchContent();
-  }, [selectedSOP]);
+  }, [selectedSOP, selectedSlug]);
 
-  if (!selectedSOP) {
+  if (!selectedSOP && !selectedSlug) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white">
         <div className="text-center text-gray-500">

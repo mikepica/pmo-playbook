@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     const sops = await HumanSOP.getAllActiveSOPs();
     const sopList = sops.map(sop => ({
       id: sop.sopId,
+      slug: sop.slug,
       filename: `${sop.sopId} - ${sop.data.title}`,
       title: sop.data.title
     }));

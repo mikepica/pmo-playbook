@@ -8,13 +8,14 @@ import ProjectsDropdown from '@/components/ProjectsDropdown';
 
 interface SOP {
   id: string;
+  slug?: string;
   filename: string;
   title: string;
 }
 
 interface SOPTabsProps {
   selectedSOP: string | null;
-  onSOPSelect: (sopId: string) => void;
+  onSOPSelect: (sopId: string, slug: string) => void;
   onSOPsLoaded?: (sops: SOP[]) => void;
 }
 
@@ -60,24 +61,31 @@ export default function SOPTabs({ selectedSOP, onSOPSelect, onSOPsLoaded }: SOPT
           <FileText className="w-5 h-5 mr-3 text-gray-600" />
           <div className="text-sm text-gray-600 mr-4">PMO SOPs:</div>
           <div className="flex flex-wrap gap-2">
-            {sops.map((sop) => (
-              <button
-                key={sop.id}
-                onClick={() => {
-                  onSOPSelect(sop.id);
-                  // Update URL without full page navigation
-                  window.history.pushState({}, '', `/sop/${sop.id}`);
-                }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  selectedSOP === sop.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
-                }`}
-                title={sop.title}
-              >
-                {sop.title}
-              </button>
-            ))}
+            {sops.map((sop) => {
+              // Only show SOPs that have slugs
+              if (!sop.slug) return null;
+              
+              const isSelected = selectedSOP === sop.id;
+              
+              return (
+                <button
+                  key={sop.id}
+                  onClick={() => {
+                    onSOPSelect(sop.id, sop.slug);
+                    // Update URL without full page navigation - always use slug
+                    window.history.pushState({}, '', `/sop/${sop.slug}`);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isSelected
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
+                  }`}
+                  title={sop.title}
+                >
+                  {sop.title}
+                </button>
+              );
+            })}
           </div>
         </div>
         <div className="flex items-center space-x-2">

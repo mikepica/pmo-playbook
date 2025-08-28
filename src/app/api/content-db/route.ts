@@ -4,6 +4,7 @@ import { HumanSOP } from '@/models/HumanSOP';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sopId = searchParams.get('sopId');
+  const slug = searchParams.get('slug');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _type = searchParams.get('type') || 'human'; // Only 'human' supported now
   const all = searchParams.get('all'); // Get all SOPs
@@ -16,6 +17,7 @@ export async function GET(request: Request) {
       const sops = pgSops.map(sop => ({
         _id: sop.id.toString(),
         sopId: sop.sopId,
+        slug: sop.slug,
         title: sop.data.title,
         version: sop.version,
         markdownContent: sop.data.markdownContent,
@@ -25,11 +27,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ sops });
     }
     
-    if (!sopId) {
-      return NextResponse.json({ error: 'Missing sopId parameter' }, { status: 400 });
+    if (!sopId && !slug) {
+      return NextResponse.json({ error: 'Missing sopId or slug parameter' }, { status: 400 });
     }
     
-    const sop = await HumanSOP.findBySopId(sopId);
+    // Try to find by slug first, then by sopId for backward compatibility
+    let sop;
+    if (slug) {
+      sop = await HumanSOP.findBySlug(slug);
+    } else if (sopId) {
+      sop = await HumanSOP.findBySopId(sopId);
+    }
+    
     if (sop) {
       return NextResponse.json({ 
         content: sop.data.markdownContent,

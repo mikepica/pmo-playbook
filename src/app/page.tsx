@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 interface SOP {
   id: string;
+  slug?: string;
   filename: string;
   title: string;
 }
@@ -33,9 +34,16 @@ export default function Home() {
         const sopList: SOP[] = data.sops || [];
         
         if (sopList.length > 0) {
-          // Redirect to the first SOP
-          const firstSOP = sopList[0];
-          router.replace(`/sop/${firstSOP.id}`);
+          // Find the pre-initiation phase SOP, or fallback to first SOP with slug
+          const preInitiationSOP = sopList.find(sop => 
+            sop.slug === 'pre-initiation-phase' || 
+            sop.title.toLowerCase().includes('pre-initiation')
+          );
+          const targetSOP = preInitiationSOP || sopList.find(sop => sop.slug) || sopList[0];
+          
+          // Use slug if available, otherwise use ID
+          const identifier = targetSOP.slug || targetSOP.id;
+          router.replace(`/sop/${identifier}`);
         } else {
           setLoading(false);
         }

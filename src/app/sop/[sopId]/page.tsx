@@ -8,27 +8,27 @@ import ChatInterfacePersistent from '@/components/ChatInterfacePersistent';
 
 interface SOP {
   id: string;
+  slug?: string;
   filename: string;
   title: string;
 }
 
 export default function SOPPage() {
   const params = useParams();
-  const sopId = params.sopId as string;
-  const [selectedSOP, setSelectedSOP] = useState<string | null>(sopId);
+  const slug = params.sopId as string; // This is now always a slug
+  const [selectedSOP, setSelectedSOP] = useState<string | null>(null); // Will store the actual SOP ID
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(slug); // Track the current slug
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (sopId) {
-      setSelectedSOP(sopId);
-    }
-  }, [sopId]);
+    // We'll find and set the SOP ID after loading the SOPs list
+  }, []);
 
   useEffect(() => {
-    // Validate SOP exists
+    // Validate SOP exists by slug and get the SOP ID
     const validateSOP = async () => {
       try {
-        console.log(`Validating SOP: ${sopId}`);
+        console.log(`Validating SOP by slug: ${slug}`);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
@@ -51,17 +51,18 @@ export default function SOPPage() {
         console.log('API data received:', data);
         const sopList: SOP[] = data.sops || [];
         
-        console.log(`Available SOPs: ${sopList.map(s => s.id).join(', ')}`);
-        console.log(`Looking for SOP: ${sopId}`);
+        console.log(`Available SOPs: ${sopList.map(s => `${s.slug || s.id}`).join(', ')}`);
+        console.log(`Looking for SOP with slug: ${slug}`);
         
-        const sopExists = sopList.some(sop => sop.id === sopId);
-        console.log(`SOP exists: ${sopExists}`);
+        const matchingSop = sopList.find(sop => sop.slug === slug);
         
-        if (!sopExists && sopList.length > 0) {
-          console.warn(`SOP ${sopId} not found in available SOPs`);
+        if (!matchingSop && sopList.length > 0) {
+          console.warn(`SOP with slug ${slug} not found in available SOPs`);
           notFound();
-        } else {
+        } else if (matchingSop) {
           console.log('SOP validation successful');
+          setSelectedSOP(matchingSop.id); // Set the SOP ID for internal use
+          setSelectedSlug(matchingSop.slug || slug); // Set the slug
           setLoading(false);
         }
       } catch (error) {
@@ -73,12 +74,13 @@ export default function SOPPage() {
     };
 
     validateSOP();
-  }, [sopId]);
+  }, [slug]);
 
-  const handleSOPSelect = (newSopId: string) => {
+  const handleSOPSelect = (newSopId: string, newSlug: string) => {
     setSelectedSOP(newSopId);
-    // Navigate to the new SOP URL
-    window.history.pushState({}, '', `/sop/${newSopId}`);
+    setSelectedSlug(newSlug);
+    // Navigate to the new SOP URL using slug only
+    window.history.pushState({}, '', `/sop/${newSlug}`);
   };
 
   const handleSOPsLoaded = () => {
@@ -117,7 +119,7 @@ export default function SOPPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* SOP Viewer */}
         <div className="flex-1 flex flex-col overflow-hidden h-full">
-          <MarkdownViewerDB selectedSOP={selectedSOP} />
+          <MarkdownViewerDB selectedSOP={selectedSOP} selectedSlug={selectedSlug} />
         </div>
         
         {/* AI Chat Interface - Persistent across all SOP pages */}

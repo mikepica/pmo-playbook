@@ -10,6 +10,7 @@ export interface HumanSOPData {
 export interface HumanSOPRecord {
   id: number;
   sopId: string;
+  slug?: string;
   data: HumanSOPData;
   version: number;
   isActive: boolean;
@@ -29,6 +30,29 @@ export class HumanSOPModel extends PostgresModel {
     }
     return null;
   }
+
+  async findBySlug(slug: string): Promise<HumanSOPRecord | null> {
+    const result = await this.findOne({ slug: slug, is_active: true });
+    if (result) {
+      return this.mapToRecord(result);
+    }
+    return null;
+  }
+
+  async findBySopIdOrSlug(identifier: string): Promise<HumanSOPRecord | null> {
+    // Try to find by slug first (preferred)
+    let result = await this.findOne({ slug: identifier, is_active: true });
+    
+    // If not found by slug, try by SOP ID for minimal backward compatibility
+    if (!result) {
+      result = await this.findOne({ sop_id: identifier, is_active: true });
+    }
+    
+    if (result) {
+      return this.mapToRecord(result);
+    }
+    return null;
+  }
   
   async getAllActiveSOPs(): Promise<HumanSOPRecord[]> {
     const results = await this.findMany(
@@ -39,8 +63,11 @@ export class HumanSOPModel extends PostgresModel {
   }
   
   async createSOP(sopId: string, data: HumanSOPData): Promise<HumanSOPRecord> {
+    const slug = await this.generateUniqueSlug(data.title);
+    
     const result = await this.create({
       sop_id: sopId,
+      slug: slug,
       data: JSON.stringify(data),
       version: 1,
       is_active: true
@@ -78,12 +105,20 @@ export class HumanSOPModel extends PostgresModel {
     if (!existing) return null;
     
     const mergedData = { ...existing.data, ...updates };
+    
+    // Generate new slug if title is being updated
+    let updateFields: any = { 
+      data: JSON.stringify(mergedData),
+      version: existing.version + 1
+    };
+    
+    if (updates.title && updates.title !== existing.data.title) {
+      updateFields.slug = await this.generateUniqueSlug(updates.title, existing.slug);
+    }
+    
     const results = await super.update(
       { sop_id: sopId },
-      { 
-        data: JSON.stringify(mergedData),
-        version: existing.version + 1
-      }
+      updateFields
     );
     
     if (results.length > 0) {
@@ -134,6 +169,7 @@ export class HumanSOPModel extends PostgresModel {
     return {
       id: row.id,
       sopId: row.sop_id,
+      slug: row.slug,
       data: row.data,
       version: row.version,
       isActive: row.is_active,
@@ -170,6 +206,48 @@ export class HumanSOPModel extends PostgresModel {
       content: sop.data.markdownContent,
       snapshotDate: new Date()
     };
+  }
+
+  // Generate a URL-friendly slug from text
+  private generateSlug(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-')     // Replace spaces with hyphens
+      .replace(/-+/g, '-')      // Replace multiple hyphens with single
+      .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+  }
+
+  // Generate a unique slug, handling duplicates
+  private async generateUniqueSlug(title: string, currentSlug?: string): Promise<string> {
+    const baseSlug = this.generateSlug(title);
+    
+    // If this is the same as the current slug, return it
+    if (currentSlug === baseSlug) {
+      return baseSlug;
+    }
+    
+    let slug = baseSlug;
+    let counter = 1;
+    
+    // Check for duplicates and append numbers if necessary
+    while (await this.slugExists(slug, currentSlug)) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    
+    return slug;
+  }
+
+  // Check if a slug already exists (excluding the current record)
+  private async slugExists(slug: string, currentSlug?: string): Promise<boolean> {
+    const query = currentSlug 
+      ? `SELECT 1 FROM human_sops WHERE slug = $1 AND slug != $2 AND is_active = true LIMIT 1`
+      : `SELECT 1 FROM human_sops WHERE slug = $1 AND is_active = true LIMIT 1`;
+    
+    const params = currentSlug ? [slug, currentSlug] : [slug];
+    const result = await this.pool.query(query, params);
+    return result.rows.length > 0;
   }
 }
 
