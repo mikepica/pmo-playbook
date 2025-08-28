@@ -1,36 +1,3 @@
-# AI System Configuration - Technical Settings
-# 
-# This file contains all technical configurations, models, and system behavior settings.
-# It works together with ai-prompts.yaml to provide complete AI configuration.
-# 
-# FILE RELATIONSHIP:
-# - ai-system.yaml (this file): Technical settings, models, and system behavior
-# - ai-prompts.yaml: All user-customizable text and prompts
-# 
-# USAGE:
-# - Configure LLMs, temperatures, token limits, and system behavior
-# - Reference prompts from ai-prompts.yaml using prompt_config section
-# - Override technical settings per environment (dev/prod/testing)
-# - Control features, debugging, and performance settings
-# 
-# LOADING CONFIGURATION:
-# Your application should:
-# 1. Load this file for technical configuration
-# 2. Load ai-prompts.yaml and merge the active prompt set
-# 3. Use prompts_config.active_prompt_set to determine which prompts to use
-# 
-# Example pseudocode:
-#   system_config = loadYAML("ai-system.yaml")
-#   prompts_config = loadYAML("ai-prompts.yaml")
-#   active_set = system_config.prompts_config.active_prompt_set
-#   active_prompts = prompts_config.prompt_sets[active_set]
-#   final_config = merge(system_config, active_prompts)
-# 
-# ENVIRONMENT SWITCHING:
-# Different environments can use different prompt sets:
-# - development: Use "default" prompts with debug logging
-# - production: Use "default" prompts with minimal logging  
-# - testing: Use "technical" prompts with cheaper models
 
 # ============================================================================
 # PROMPTS FILE REFERENCE
@@ -49,7 +16,7 @@ processing:
   # Primary model for all operations
   model: "gpt-4o"
   temperature: 0.3
-  max_tokens: 2000
+  max_tokens: 50000
   max_response_words: 1500
   
   # XML structure processing
@@ -102,23 +69,7 @@ escape_hatch:
   # Feedback prompt text
   feedback_prompt: "📝 Please leave feedback about this gap so we can improve our Playbook."
 
-# CUSTOMIZING REASONING STEPS:
-# You can customize which steps are used by modifying the reasoning_steps array in response modes.
-# Available steps: "analyze_query", "research_sops", "synthesize_answer", "validate_response"
-# 
-# Examples:
-# - Quick reasoning: ["research_sops", "synthesize_answer"] 
-# - Analysis focus: ["analyze_query", "research_sops", "validate_response"]
-# - Full reasoning: ["analyze_query", "research_sops", "synthesize_answer", "validate_response"] (default)
-#
-# ITERATIVE REFINEMENT:
-# For comprehensive mode, you can enable iterative refinement to improve answers through multiple passes:
-# - enabled: true/false - Enable iterative refinement
-# - max_iterations: Number of additional refinement passes (beyond initial reasoning)
-# - refinement_steps: Which steps to repeat during refinement (typically ["research_sops", "synthesize_answer"])
-# - confidence_threshold: Stop refining when confidence reaches this level (0.0-1.0)
-# - improvement_threshold: Only continue if confidence improves by at least this much (0.0-1.0)
-# - timeout_per_iteration_ms: Max time per refinement iteration in milliseconds
+
 
 # ============================================================================
 # SOP DIRECTORY MANAGEMENT - Auto-updating SOP overview

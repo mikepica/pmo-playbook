@@ -781,29 +781,11 @@ export default function ChatInterfaceAI() {
                   {message.type === 'assistant' && message.attribution && (
                     <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
                       <div className="flex items-center gap-3">
-                        {/* Coverage Badge */}
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          message.attribution.coverageLevel === 'high' ? 'bg-green-100 text-green-800' :
-                          message.attribution.coverageLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {message.attribution.coverageLevel || 'unknown'} coverage
-                        </span>
-                        
                         {/* Overall Confidence */}
                         <span className="text-gray-600">
                           Overall Confidence (avg): {Math.round(message.attribution.confidence * 100)}%
                         </span>
                         
-                        {/* Strategy Indicator if not full coverage */}
-                        {message.attribution.responseStrategy !== 'full_answer' && message.attribution.responseStrategy && (
-                          <span className={`px-2 py-0.5 rounded text-xs ${
-                            message.attribution.responseStrategy === 'escape_hatch' ? 'bg-orange-100 text-orange-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {message.attribution.responseStrategy === 'escape_hatch' ? '📝 Gap identified' : '⚠️ Partial coverage'}
-                          </span>
-                        )}
                       </div>
                       
                       {/* Processing Info */}
