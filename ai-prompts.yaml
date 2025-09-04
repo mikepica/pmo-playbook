@@ -9,7 +9,7 @@ active_prompt_set: "default"
 # ============================================================================
 prompt_sets:
   # Default prompt set for unified PMO consultation
-  default:
+  default: #Only active prompt set
     # XML processing descriptions
     xml_stages:
       query_analysis:
@@ -112,7 +112,7 @@ prompt_sets:
         Coverage Level: {{coverageLevel}}
 
   # Technical-focused prompt set (example alternative)
-  technical:
+  technical: #Inactive - will activate when have user auth. For PMO team to use for different response type.
     # XML processing descriptions for technical queries
     xml_stages:
       query_analysis:
