@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { processQuery, UnifiedQueryResult } from '@/lib/unified-query-processor';
+import { processQueryWithLangGraph } from '@/lib/langgraph-processor';
 import { debugLog } from '@/lib/ai-config';
 import { ChatHistory } from '@/models/ChatHistory';
 
@@ -36,14 +37,22 @@ export async function POST(request: Request) {
       // Continue without context
     }
 
-    debugLog('log_xml_processing', 'Processing query with unified system', { 
-      message: message, 
+    // Check feature flag to determine which processor to use
+    const enableLangGraph = process.env.ENABLE_LANGGRAPH_PROCESSOR === 'true';
+    const processorType = enableLangGraph ? 'LangGraph' : 'Unified';
+    
+    debugLog('log_response_modes', `Processing query with ${processorType} system`, {
+      message: message,
       sessionId: currentSessionId,
-      contextLength: conversationContext.length
+      contextLength: conversationContext.length,
+      processor: processorType,
+      enableLangGraph
     });
 
-    // Use unified processing pipeline
-    const result: UnifiedQueryResult = await processQuery(message, conversationContext);
+    // Use appropriate processing pipeline based on feature flag
+    const result: UnifiedQueryResult = enableLangGraph
+      ? await processQueryWithLangGraph(message, conversationContext, currentSessionId)
+      : await processQuery(message, conversationContext);
 
     // Format response for API compatibility
     const answerResult = {
@@ -75,12 +84,13 @@ export async function POST(request: Request) {
       summaryGenerated: false
     };
     
-    debugLog('log_xml_processing', 'Unified processing completed', {
+    debugLog('log_response_modes', `${processorType} processing completed`, {
       answerLength: answerResult.answer.length,
       sopCount: answerResult.sopSources.length,
       coverageLevel: answerResult.coverageLevel,
       responseStrategy: answerResult.responseStrategy,
-      processingTime: answerResult.processingTime
+      processingTime: answerResult.processingTime,
+      processor: processorType
     });
 
     // Save or update chat history
@@ -98,29 +108,29 @@ export async function POST(request: Request) {
           role: 'user',
           content: message
         });
-        
+
         // Add assistant message with unified system data
         await ChatHistory.addMessage(currentSessionId, {
           role: 'assistant',
           content: answerResult.answer,
-          selectedSopId: sopIdForStorage,
+          selectedSopId: sopIdForStorage || undefined,
           confidence: answerResult.confidence
         });
       } else {
         // Create new chat session
         await ChatHistory.createSession(currentSessionId);
-        
+
         // Add user message
         await ChatHistory.addMessage(currentSessionId, {
           role: 'user',
           content: message
         });
-        
+
         // Add assistant message with unified system data
         await ChatHistory.addMessage(currentSessionId, {
           role: 'assistant',
           content: answerResult.answer,
-          selectedSopId: sopIdForStorage,
+          selectedSopId: sopIdForStorage || undefined,
           confidence: answerResult.confidence
         });
       }
@@ -155,7 +165,8 @@ export async function POST(request: Request) {
         tokensUsed: answerResult.tokensUsed,
         
         // Legacy compatibility fields
-        responseMode: 'unified',  // No longer relevant but kept for compatibility
+        responseMode: enableLangGraph ? 'langgraph' : 'unified',
+        processor: processorType,
         usedChainOfThought: false,
         reasoning: undefined
       }
