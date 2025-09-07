@@ -31,7 +31,7 @@
     "@neondatabase/serverless": "^1.0.1",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/js-yaml": "^4.0.9",
-    "dotenv": "^17.2.0",
+    "dotenv": "^16.4.5",
     "js-yaml": "^4.1.0",
     "langsmith": "^0.3.67",
     "lucide-react": "^0.469.0",
