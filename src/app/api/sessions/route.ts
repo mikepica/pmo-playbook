@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ChatHistory } from '@/models/ChatHistory';
 import OpenAI from 'openai';
-import { getSessionManagementConfig } from '@/lib/ai-config';
 
 // GET all sessions for the user (with summaries)
 export async function GET(request: Request) {
@@ -190,7 +189,12 @@ Examples of good summaries:
 Summary:`;
 
     try {
-      const sessionConfig = getSessionManagementConfig();
+      // Session management configuration
+    const sessionConfig = {
+      summary_model: process.env.OPENAI_MODEL || 'gpt-4o',
+      summary_temperature: 0.3,
+      summary_max_tokens: 150
+    };
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });

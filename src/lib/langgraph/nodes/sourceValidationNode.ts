@@ -1,7 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers, SourceValidationResult } from '../state';
 import { HumanSOP } from '@/models/HumanSOP';
-import { getAIConfig, getPrompt, debugLog } from '../../ai-config';
 
 /**
  * Source Validation Node
@@ -12,7 +11,7 @@ export async function sourceValidationNode(state: WorkflowState): Promise<Partia
   const startTime = Date.now();
   
   try {
-    debugLog('log_xml_processing', 'Starting source validation node', {
+    console.log('log_xml_processing', 'Starting source validation node', {
       sopCount: state.sopReferences.length,
       confidence: state.confidence,
       gaps: state.coverageAnalysis.gaps.length
@@ -22,7 +21,7 @@ export async function sourceValidationNode(state: WorkflowState): Promise<Partia
     if (state.coverageAnalysis.responseStrategy !== 'partial_answer' || 
         state.sopReferences.length < 2 ||
         state.coverageAnalysis.gaps.length === 0) {
-      debugLog('log_xml_processing', 'Skipping source validation - conditions not met', {
+      console.log('log_xml_processing', 'Skipping source validation - conditions not met', {
         strategy: state.coverageAnalysis.responseStrategy,
         sopCount: state.sopReferences.length,
         gapCount: state.coverageAnalysis.gaps.length
@@ -34,8 +33,8 @@ export async function sourceValidationNode(state: WorkflowState): Promise<Partia
       };
     }
 
-    const config = getAIConfig();
-    const systemPrompt = getPrompt('system_base');
+    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.2 } };
+    const systemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to validate sources and cross-reference information across SOPs.`;
 
     // Get related SOPs for cross-referencing
     const primarySop = state.sopReferences[0];
@@ -184,7 +183,7 @@ CONFIDENCE_ADJUSTMENT: [INCREASE/DECREASE/MAINTAIN] - [reason]
       adjustmentReason
     );
 
-    debugLog('log_xml_processing', 'Source validation completed', {
+    console.log('log_xml_processing', 'Source validation completed', {
       consistencyScore: validationResult.consistencyScore,
       conflicts: validationResult.conflicts.length,
       recommendations: validationResult.recommendations.length,

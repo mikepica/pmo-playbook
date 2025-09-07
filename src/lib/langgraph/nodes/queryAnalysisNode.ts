@@ -1,6 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers } from '../state';
-import { getAIConfig, getPrompt, debugLog } from '../../ai-config';
 
 /**
  * Query Analysis Node
@@ -11,14 +10,20 @@ export async function queryAnalysisNode(state: WorkflowState): Promise<Partial<W
   const startTime = Date.now();
   
   try {
-    debugLog('log_xml_processing', 'Starting query analysis node', { 
+    console.log('Starting query analysis node', { 
       query: state.query,
       sessionId: state.sessionId 
     });
 
-    // Get configuration
-    const config = getAIConfig();
-    const systemPrompt = getPrompt('system_base');
+    // System prompt for query analysis
+    const systemPrompt = `You are an expert PMO consultant. Your role is to analyze user queries to understand what information they need FROM THE COMPANY'S STANDARD OPERATING PROCEDURES (SOPs).
+
+CRITICAL INSTRUCTIONS:
+1. Identify what the user wants to find in the SOPs
+2. Extract key topics that should be searched for in SOPs
+3. Your intent should ALWAYS be to find relevant SOP content
+4. Never assume the user wants general information - they want SOP-specific information
+5. Focus on identifying searchable terms and concepts from SOPs`;
     
     // Build context string if available
     const contextString = state.conversationContext.length > 0 
@@ -27,23 +32,24 @@ export async function queryAnalysisNode(state: WorkflowState): Promise<Partial<W
 
     // Create query analysis prompt
     const analysisPrompt = `
-Analyze this user query and provide a structured assessment:
+Analyze this user query to determine what SOP content should be searched:
 
 User Query: "${state.query}"${contextString}
 
-Please analyze and respond with the following information:
-1. Intent: What is the user trying to accomplish?
-2. Key Topics: What are the main concepts/topics involved?
-3. Specificity Level: How specific or general is this request?
-4. Context Requirements: Does this query need additional context to answer properly?
+Please analyze and respond with:
+1. Intent: What SOP information is the user looking for?
+2. Key Topics: What specific terms/concepts should we search for in the SOPs?
+3. Specificity Level: How specific is this request?
+4. Context Requirements: What SOP sections would likely contain this information?
 
+Remember: The user is asking about content that should be IN THE SOPs, not general knowledge.
 Respond in a clear, structured format.
 `;
 
     // Make LLM call
     const llm = new ChatOpenAI({
-      modelName: config.processing?.model || 'gpt-4o',
-      temperature: config.processing?.temperature || 0.2,
+      modelName: process.env.OPENAI_MODEL || 'gpt-4o',
+      temperature: 0.2,
       maxTokens: 1000
     });
 
@@ -70,7 +76,7 @@ Respond in a clear, structured format.
     // Update state
     const updatedState = StateHelpers.addLLMCall(state, {
       node: 'queryAnalysis',
-      model: config.processing?.model || 'gpt-4o',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       tokensIn: estimateTokens(analysisPrompt),
       tokensOut: estimateTokens(analysisContent),
       latency: Date.now() - startTime,
@@ -84,7 +90,7 @@ Respond in a clear, structured format.
       'Initial query analysis confidence based on clarity and specificity'
     );
 
-    debugLog('log_xml_processing', 'Query analysis completed', {
+    console.log('Query analysis completed', {
       intent,
       keyTopics,
       specificityLevel,

@@ -1,8 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { WorkflowState, StateHelpers } from '../state';
-import { SOPReference } from '../../unified-query-processor';
+import { WorkflowState, StateHelpers, SOPReference } from '../state';
 import { HumanSOP } from '@/models/HumanSOP';
-import { getAIConfig, getPrompt, debugLog } from '../../ai-config';
 
 /**
  * SOP Assessment Node
@@ -13,7 +11,7 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
   const startTime = Date.now();
   
   try {
-    debugLog('log_xml_processing', 'Starting SOP assessment node', { 
+    console.log('Starting SOP assessment node', { 
       query: state.query,
       intent: state.coverageAnalysis.queryIntent,
       keyTopics: state.coverageAnalysis.keyTopics 
@@ -37,23 +35,46 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
       };
     }
 
-    // Build SOP summaries for analysis
+    // Build SOP summaries for analysis - send COMPLETE content
     const sopSummaries = humanSOPs.map(sop => {
-      const fullContent = sop.data.markdownContent
-        .replace(/^#.*$/gm, '') // Remove headers
-        .replace(/\n\s*\n/g, ' ') // Collapse whitespace
-        .trim()
-        .replace(/\s+/g, ' ');
+      // Send the FULL content - no truncation at all
+      const fullContent = sop.data.markdownContent;
       
       return `- SOP ID: ${sop.sopId}
    Title: "${sop.data.title}"
-   Full Content: "${fullContent.substring(0, 1000)}..."`;
+   Full Content: "${fullContent}"`;
     }).join('\n\n');
 
-    // Get configuration and prompts
-    const config = getAIConfig();
-    const systemPrompt = getPrompt('system_base');
-    const analysisPrompt = getPrompt('sop_analysis_xml');
+    // System prompt for SOP assessment
+    const systemPrompt = `You are an expert PMO consultant analyzing company SOPs for relevant content.
+
+CRITICAL INSTRUCTIONS:
+1. Search through each SOP for content matching the user's query
+2. When you find relevant content, create an <sop> entry for it
+3. ALWAYS generate <sop> tags when content is found, even if partially relevant
+4. Set confidence based on how well the SOP answers the question
+5. The user is looking for information that exists in the SOPs
+6. If an SOP mentions project managers, roles, responsibilities - it's relevant!
+7. Use XML structure exactly as specified - this is critical for parsing`;
+
+    const analysisPrompt = `Analyze the provided SOPs and determine their relevance to the user query. 
+
+Respond with the following XML structure:
+<analysis>
+  <intent>What the user is trying to find out</intent>
+  <key_topics>topic1, topic2, topic3</key_topics>
+  
+  <sop id="SOP-ID" confidence="0.0-1.0">
+    <relevant_sections>Section names that apply</relevant_sections>
+    <key_points>Key relevant points from this SOP</key_points>
+    <applicability>How this SOP addresses the query</applicability>
+  </sop>
+  
+  <overall_confidence>0.0-1.0</overall_confidence>
+  <coverage_level>high|medium|low</coverage_level>
+  <gaps>Any missing information</gaps>
+  <response_strategy>full_answer|partial_answer|escape_hatch</response_strategy>
+</analysis>`;
     
     // Build context string
     const contextString = state.conversationContext.length > 0 
@@ -63,17 +84,20 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
     const fullPrompt = `${analysisPrompt}
 
 User Query: "${state.query}"
-Query Intent: "${state.coverageAnalysis.queryIntent}"
-Key Topics: ${state.coverageAnalysis.keyTopics.join(', ')}${contextString}
+Intent: Find information about "${state.coverageAnalysis.queryIntent}"
+Search for: ${state.coverageAnalysis.keyTopics.join(', ')}${contextString}
+
+IMPORTANT: Generate <sop> entries for EVERY SOP that contains relevant information about the query.
+If an SOP discusses project managers, their roles, or responsibilities, it MUST be included.
 
 Available SOPs:
 ${sopSummaries}`;
 
-    // Make AI call
+    // Make AI call with increased token limit for large context
     const llm = new ChatOpenAI({
-      modelName: config.sop_selection?.model || config.processing?.model || 'gpt-4o',
-      temperature: config.sop_selection?.temperature || config.processing?.temperature || 0.2,
-      maxTokens: 8000
+      modelName: process.env.OPENAI_MODEL || 'gpt-4o',
+      temperature: 0.2,
+      maxTokens: 16000  // Increased from 8000 to handle full SOP content
     });
 
     const response = await llm.invoke([
@@ -86,10 +110,13 @@ ${sopSummaries}`;
       throw new Error('No response from AI for SOP assessment');
     }
 
-    debugLog('log_xml_processing', 'Received SOP assessment', { 
+    console.log('Received SOP assessment', { 
       contentLength: xmlContent.length,
       duration: Date.now() - startTime 
     });
+
+    // Debug: Log the actual XML content to understand parsing issues
+    console.log('Raw XML Response:', xmlContent.substring(0, 1000) + (xmlContent.length > 1000 ? '...' : ''));
 
     // Parse XML response using existing logic
     const { sopReferences, coverageAnalysis } = parseSOPAnalysisXML(xmlContent);
@@ -105,7 +132,7 @@ ${sopSummaries}`;
     // Update state with LLM call metadata
     const updatedState = StateHelpers.addLLMCall(state, {
       node: 'sopAssessment',
-      model: config.sop_selection?.model || config.processing?.model || 'gpt-4o',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       tokensIn: estimateTokens(fullPrompt),
       tokensOut: estimateTokens(xmlContent),
       latency: Date.now() - startTime,
@@ -119,7 +146,7 @@ ${sopSummaries}`;
       `Found ${sopReferences.length} relevant SOPs with ${coverageAnalysis.coverageLevel} coverage`
     );
 
-    debugLog('log_coverage_analysis', 'SOP assessment complete', {
+    console.log('SOP assessment complete', {
       overallConfidence: coverageAnalysis.overallConfidence,
       strategy: coverageAnalysis.responseStrategy,
       sopCount: sopReferences.length
@@ -157,28 +184,56 @@ ${sopSummaries}`;
  */
 function parseSOPAnalysisXML(xmlResponse: string): {
   sopReferences: SOPReference[];
-  coverageAnalysis: any;
+  coverageAnalysis: {
+    overallConfidence: number;
+    coverageLevel: 'high' | 'medium' | 'low';
+    gaps: string[];
+    responseStrategy: 'full_answer' | 'partial_answer' | 'escape_hatch';
+    queryIntent: string;
+    keyTopics: string[];
+  };
 } {
   try {
+    console.log('Parsing XML response, length:', xmlResponse.length);
+    
+    // Clean up XML response - remove markdown code blocks if present
+    let cleanXml = xmlResponse.trim();
+    if (cleanXml.startsWith('```xml')) {
+      cleanXml = cleanXml.replace(/^```xml\s*\n?/, '').replace(/\n?```\s*$/, '');
+    } else if (cleanXml.startsWith('```')) {
+      cleanXml = cleanXml.replace(/^```\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+    
+    console.log('Cleaned XML for parsing, length:', cleanXml.length);
+    
     // Extract query analysis
-    const queryIntentMatch = xmlResponse.match(/<intent>(.*?)<\/intent>/s);
-    const keyTopicsMatch = xmlResponse.match(/<key_topics>(.*?)<\/key_topics>/s);
+    const queryIntentMatch = cleanXml.match(/<intent>(.*?)<\/intent>/);
+    const keyTopicsMatch = cleanXml.match(/<key_topics>(.*?)<\/key_topics>/);
     
     const queryIntent = queryIntentMatch?.[1]?.trim() || 'Unknown intent';
     const keyTopics = keyTopicsMatch?.[1]?.trim().split(',').map(t => t.trim()) || [];
 
+    console.log('Parsed query analysis:', { queryIntent, keyTopics });
+
     // Extract SOP references
-    const sopMatches = xmlResponse.matchAll(/<sop id="([^"]+)" confidence="([^"]+)">(.*?)<\/sop>/gs);
+    const sopReferenceRegex = /<sop id="([^"]+)" confidence="([^"]+)">([\s\S]*?)<\/sop>/g; // Use [\s\S] instead of 's' flag for compatibility
     const sopReferences: SOPReference[] = [];
+    let sopMatch;
+    let matchCount = 0;
     
-    for (const match of sopMatches) {
-      const sopId = match[1];
-      const confidence = parseFloat(match[2]);
-      const sopContent = match[3];
+    console.log('Looking for SOP matches in cleaned XML...');
+    console.log('First 500 chars of cleanXml:', cleanXml.substring(0, 500));
+    
+    while ((sopMatch = sopReferenceRegex.exec(cleanXml)) !== null) {
+      matchCount++;
+      console.log(`Found SOP match ${matchCount}:`, sopMatch[1], sopMatch[2]);
+      const sopId = sopMatch[1];
+      const confidence = parseFloat(sopMatch[2]);
+      const sopContent = sopMatch[3];
       
-      const sectionsMatch = sopContent.match(/<relevant_sections>(.*?)<\/relevant_sections>/s);
-      const keyPointsMatch = sopContent.match(/<key_points>(.*?)<\/key_points>/s);
-      const applicabilityMatch = sopContent.match(/<applicability>(.*?)<\/applicability>/s);
+      const sectionsMatch = sopContent.match(/<relevant_sections>(.*?)<\/relevant_sections>/);
+      const keyPointsMatch = sopContent.match(/<key_points>(.*?)<\/key_points>/);
+      const applicabilityMatch = sopContent.match(/<applicability>(.*?)<\/applicability>/);
       
       sopReferences.push({
         sopId,
@@ -191,10 +246,10 @@ function parseSOPAnalysisXML(xmlResponse: string): {
     }
 
     // Extract coverage evaluation
-    const overallConfidenceMatch = xmlResponse.match(/<overall_confidence>(.*?)<\/overall_confidence>/s);
-    const coverageLevelMatch = xmlResponse.match(/<coverage_level>(.*?)<\/coverage_level>/s);
-    const gapsMatch = xmlResponse.match(/<gaps>(.*?)<\/gaps>/s);
-    const responseStrategyMatch = xmlResponse.match(/<response_strategy>(.*?)<\/response_strategy>/s);
+    const overallConfidenceMatch = cleanXml.match(/<overall_confidence>(.*?)<\/overall_confidence>/);
+    const coverageLevelMatch = cleanXml.match(/<coverage_level>(.*?)<\/coverage_level>/);
+    const gapsMatch = cleanXml.match(/<gaps>(.*?)<\/gaps>/);
+    const responseStrategyMatch = cleanXml.match(/<response_strategy>(.*?)<\/response_strategy>/);
 
     const overallConfidence = parseFloat(overallConfidenceMatch?.[1]?.trim() || '0');
     const coverageLevel = (coverageLevelMatch?.[1]?.trim() || 'low') as 'high' | 'medium' | 'low';
@@ -209,6 +264,12 @@ function parseSOPAnalysisXML(xmlResponse: string): {
       queryIntent,
       keyTopics
     };
+
+    console.log('XML parsing complete:', { 
+      sopReferencesFound: sopReferences.length,
+      overallConfidence,
+      responseStrategy 
+    });
 
     return { sopReferences, coverageAnalysis };
 

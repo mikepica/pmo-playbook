@@ -1,5 +1,4 @@
 import { WorkflowState, StateHelpers } from '../state';
-import { getAIConfig, debugLog } from '../../ai-config';
 
 /**
  * Coverage Evaluation Node
@@ -7,17 +6,16 @@ import { getAIConfig, debugLog } from '../../ai-config';
  * Routes to appropriate next steps (response generation, fact checking, etc.)
  */
 export async function coverageEvaluationNode(state: WorkflowState): Promise<Partial<WorkflowState>> {
-  const startTime = Date.now();
   
   try {
-    debugLog('log_coverage_analysis', 'Starting coverage evaluation', {
+    console.log('Starting coverage evaluation', {
       overallConfidence: state.coverageAnalysis.overallConfidence,
       coverageLevel: state.coverageAnalysis.coverageLevel,
       sopCount: state.sopReferences.length
     });
 
-    const config = getAIConfig();
-    const thresholds = config.processing?.coverage_thresholds || {
+    // Coverage thresholds
+    const thresholds = {
       high_confidence: 0.7,
       medium_confidence: 0.4,
       low_confidence: 0.4
@@ -49,7 +47,7 @@ export async function coverageEvaluationNode(state: WorkflowState): Promise<Part
       evaluation.evaluationReason
     );
 
-    debugLog('log_coverage_analysis', 'Coverage evaluation complete', {
+    console.log('Coverage evaluation complete', {
       originalConfidence: state.coverageAnalysis.overallConfidence,
       adjustedConfidence: evaluation.adjustedConfidence,
       strategy: evaluation.responseStrategy,
@@ -83,14 +81,14 @@ export async function coverageEvaluationNode(state: WorkflowState): Promise<Part
  */
 function evaluateCoverage(
   confidence: number,
-  sopReferences: any[],
-  thresholds: any,
+  sopReferences: unknown[],
+  thresholds: { high_confidence: number; medium_confidence: number; low_confidence: number },
   gaps: string[]
 ) {
   let adjustedConfidence = confidence;
   let coverageLevel: 'high' | 'medium' | 'low' = 'low';
   let responseStrategy: 'full_answer' | 'partial_answer' | 'escape_hatch' = 'escape_hatch';
-  let evaluationReasons: string[] = [];
+  const evaluationReasons: string[] = [];
 
   // Base confidence evaluation
   if (confidence >= thresholds.high_confidence) {
@@ -109,9 +107,16 @@ function evaluateCoverage(
 
   // Adjust based on number of SOPs found
   if (sopReferences.length === 0) {
-    adjustedConfidence = Math.min(adjustedConfidence, 0.2);
-    responseStrategy = 'escape_hatch';
-    evaluationReasons.push('No relevant SOPs found');
+    // If original confidence was high but no SOPs parsed, likely a parsing issue
+    if (confidence >= 0.7) {
+      adjustedConfidence = Math.min(adjustedConfidence, 0.6); // Less harsh penalty
+      responseStrategy = 'partial_answer'; // Try partial instead of escape_hatch
+      evaluationReasons.push('High AI confidence but no SOPs parsed - possible XML parsing issue');
+    } else {
+      adjustedConfidence = Math.min(adjustedConfidence, 0.2);
+      responseStrategy = 'escape_hatch';
+      evaluationReasons.push('No relevant SOPs found');
+    }
   } else if (sopReferences.length === 1) {
     // Single SOP - check its confidence
     const sopConfidence = sopReferences[0]?.confidence || 0;
@@ -174,7 +179,7 @@ function evaluateCoverage(
 /**
  * Determine next node based on coverage evaluation
  */
-function determineNextNode(evaluation: any, state: WorkflowState): string {
+function determineNextNode(evaluation: { responseStrategy: string; adjustedConfidence: number }, state: WorkflowState): string {
   // For high confidence answers with multiple SOPs, consider fact checking
   if (evaluation.responseStrategy === 'full_answer' && 
       state.sopReferences.length > 1 && 

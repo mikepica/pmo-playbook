@@ -1,7 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers } from '../state';
 import { HumanSOP } from '@/models/HumanSOP';
-import { getAIConfig, getPrompt, debugLog } from '../../ai-config';
 
 /**
  * Response Synthesis Node
@@ -12,15 +11,14 @@ export async function responseSynthesisNode(state: WorkflowState): Promise<Parti
   const startTime = Date.now();
   
   try {
-    debugLog('log_xml_processing', 'Starting response synthesis', {
+    console.log('log_xml_processing', 'Starting response synthesis', {
       strategy: state.coverageAnalysis.responseStrategy,
       sopCount: state.sopReferences.length,
       confidence: state.confidence
     });
 
-    const config = getAIConfig();
-    const systemPrompt = getPrompt('system_answer');
-    const generationPrompt = getPrompt('answer_generation_unified');
+    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.3, max_tokens: 8000 } };
+    const systemPrompt = `You are an expert PMO consultant. Your role is to directly answer the user's specific question by synthesizing relevant information from the company's SOPs. Focus on what the user asked for, not general SOP descriptions.`;
     
     // Handle escape hatch case early
     if (state.coverageAnalysis.responseStrategy === 'escape_hatch') {
@@ -79,12 +77,27 @@ ${sop.content}
       ? `\n\nConversation Context:\n${state.conversationContext.map(msg => `${msg.role}: ${msg.content}`).join('\n')}`
       : '';
 
-    // Replace template variables in prompt
-    const fullPrompt = generationPrompt
-      .replace('{{userQuery}}', state.query)
-      .replace('{{sopAnalysisXML}}', analysisXML)
-      .replace('{{coverageLevel}}', state.coverageAnalysis.coverageLevel) +
-      `${contextString}
+    // Build generation prompt now that analysisXML is available
+    const generationPrompt = `User Query: "${state.query}"
+Query Intent: ${state.coverageAnalysis.queryIntent}
+
+Based on the SOPs provided, directly answer the user's question.
+
+Instructions:
+1. Focus ONLY on answering what the user asked about
+2. Extract and synthesize relevant information from ALL provided SOPs
+3. If the user asks "what does X do", list their specific roles and responsibilities
+4. Do NOT just describe the SOPs or their phases - answer the specific question
+5. Organize the answer clearly with the most relevant information first
+6. Use the key points identified in the SOP analysis to guide your response
+
+Coverage Analysis:
+${analysisXML}
+
+Answer the user's question directly using the SOP content below:`;
+
+    // Build the full prompt with context and SOP content
+    const fullPrompt = `${generationPrompt}${contextString}
 
 Available SOP Content:
 ${sopContentString}`;
@@ -116,7 +129,7 @@ ${sopContentString}`;
       success: true
     });
 
-    debugLog('log_xml_processing', 'Response synthesis complete', {
+    console.log('log_xml_processing', 'Response synthesis complete', {
       answerLength: answer.length,
       duration: Date.now() - startTime
     });
@@ -133,7 +146,7 @@ ${sopContentString}`;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error in response synthesis';
     
     // Fallback to escape hatch on error
-    const config = getAIConfig();
+    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.3, max_tokens: 8000 } };
     const escapeResponse = generateEscapeHatchResponse(config, state.coverageAnalysis.queryIntent);
     
     return {
@@ -148,9 +161,8 @@ ${sopContentString}`;
 /**
  * Generate escape hatch response when coverage is insufficient
  */
-function generateEscapeHatchResponse(config: any, queryIntent: string): string {
-  const escapeTemplate = config.escape_hatch?.message_template || 
-    "The Playbook does not explicitly provide guidance for {topic}.\n\n📝 This appears to be a gap in our Playbook. Please leave feedback so we can add appropriate guidance for this topic.";
+function generateEscapeHatchResponse(_config: { processing: { model: string; temperature: number; max_tokens: number } }, queryIntent: string): string {
+  const escapeTemplate = "The Playbook does not explicitly provide guidance for {topic}.\n\n📝 This appears to be a gap in our Playbook. Please leave feedback so we can add appropriate guidance for this topic.";
   
   return escapeTemplate.replace('{topic}', queryIntent);
 }

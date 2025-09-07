@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { processQuery, UnifiedQueryResult } from '@/lib/unified-query-processor';
 import { processQueryWithLangGraph } from '@/lib/langgraph-processor';
-import { debugLog } from '@/lib/ai-config';
+import { UnifiedQueryResult } from '@/lib/langgraph/state';
 import { ChatHistory } from '@/models/ChatHistory';
 
 export async function POST(request: Request) {
@@ -37,22 +36,14 @@ export async function POST(request: Request) {
       // Continue without context
     }
 
-    // Check feature flag to determine which processor to use
-    const enableLangGraph = process.env.ENABLE_LANGGRAPH_PROCESSOR === 'true';
-    const processorType = enableLangGraph ? 'LangGraph' : 'Unified';
-    
-    debugLog('log_response_modes', `Processing query with ${processorType} system`, {
+    console.log('Processing query with LangGraph system', {
       message: message,
       sessionId: currentSessionId,
-      contextLength: conversationContext.length,
-      processor: processorType,
-      enableLangGraph
+      contextLength: conversationContext.length
     });
 
-    // Use appropriate processing pipeline based on feature flag
-    const result: UnifiedQueryResult = enableLangGraph
-      ? await processQueryWithLangGraph(message, conversationContext, currentSessionId)
-      : await processQuery(message, conversationContext);
+    // Use LangGraph processing pipeline
+    const result: UnifiedQueryResult = await processQueryWithLangGraph(message, conversationContext, currentSessionId);
 
     // Format response for API compatibility
     const answerResult = {
@@ -84,13 +75,12 @@ export async function POST(request: Request) {
       summaryGenerated: false
     };
     
-    debugLog('log_response_modes', `${processorType} processing completed`, {
+    console.log('LangGraph processing completed', {
       answerLength: answerResult.answer.length,
       sopCount: answerResult.sopSources.length,
       coverageLevel: answerResult.coverageLevel,
       responseStrategy: answerResult.responseStrategy,
-      processingTime: answerResult.processingTime,
-      processor: processorType
+      processingTime: answerResult.processingTime
     });
 
     // Save or update chat history
@@ -165,8 +155,8 @@ export async function POST(request: Request) {
         tokensUsed: answerResult.tokensUsed,
         
         // Legacy compatibility fields
-        responseMode: enableLangGraph ? 'langgraph' : 'unified',
-        processor: processorType,
+        responseMode: 'langgraph',
+        processor: 'LangGraph',
         usedChainOfThought: false,
         reasoning: undefined
       }

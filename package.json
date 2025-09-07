@@ -15,18 +15,13 @@
     "test-system": "tsx scripts/test-full-system.ts",
     "optimize-db": "tsx scripts/add-performance-indexes.ts",
     "backup": "tsx scripts/backup-postgres.ts",
-    "ai-config": "tsx scripts/ai-config-manager.ts",
     "langgraph:migrate": "tsx scripts/langgraph-migration.ts",
     "embeddings:generate": "tsx scripts/generate-sop-embeddings.ts",
     "embeddings:update": "tsx scripts/update-sop-embeddings.ts",
     "vector:setup": "tsx scripts/setup-pgvector.ts",
     "langsmith:test": "tsx scripts/test-langsmith-connection.ts",
     "langgraph:verify-phase2": "tsx scripts/verify-phase2-completion.ts",
-    "langgraph:test-phase2": "tsx scripts/test-phase2-complete.ts",
-    "processor:status": "tsx scripts/toggle-processor.ts status",
-    "processor:langgraph": "tsx scripts/toggle-processor.ts langgraph",
-    "processor:unified": "tsx scripts/toggle-processor.ts unified",
-    "processor:toggle": "tsx scripts/toggle-processor.ts toggle"
+    "langgraph:test-phase2": "tsx scripts/test-phase2-complete.ts"
   },
   "dependencies": {
     "@langchain/community": "^0.3.54",

@@ -1,7 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers, FactCheckResult } from '../state';
 import { HumanSOP } from '@/models/HumanSOP';
-import { getAIConfig, getPrompt, debugLog } from '../../ai-config';
 
 /**
  * Fact Checking Node
@@ -12,7 +11,7 @@ export async function factCheckingNode(state: WorkflowState): Promise<Partial<Wo
   const startTime = Date.now();
   
   try {
-    debugLog('log_xml_processing', 'Starting fact checking node', {
+    console.log('log_xml_processing', 'Starting fact checking node', {
       sopCount: state.sopReferences.length,
       confidence: state.confidence,
       strategy: state.coverageAnalysis.responseStrategy
@@ -21,7 +20,7 @@ export async function factCheckingNode(state: WorkflowState): Promise<Partial<Wo
     // Only fact-check for high confidence responses with multiple SOPs
     if (state.coverageAnalysis.responseStrategy !== 'full_answer' || 
         state.sopReferences.length < 2) {
-      debugLog('log_xml_processing', 'Skipping fact checking - conditions not met', {
+      console.log('log_xml_processing', 'Skipping fact checking - conditions not met', {
         strategy: state.coverageAnalysis.responseStrategy,
         sopCount: state.sopReferences.length
       });
@@ -32,8 +31,8 @@ export async function factCheckingNode(state: WorkflowState): Promise<Partial<Wo
       };
     }
 
-    const config = getAIConfig();
-    const systemPrompt = getPrompt('system_base');
+    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.2 } };
+    const systemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to verify facts and claims made about project management processes and SOPs.`;
 
     // Get full content for fact-checking
     const sopContents = await Promise.all(
@@ -147,7 +146,7 @@ Focus on identifying any contradictory information that could affect the respons
       adjustmentReason
     );
 
-    debugLog('log_xml_processing', 'Fact checking completed', {
+    console.log('log_xml_processing', 'Fact checking completed', {
       factCheckResults: factCheckResults.length,
       avgConfidence: avgFactCheckConfidence,
       adjustedConfidence,
@@ -178,7 +177,7 @@ Focus on identifying any contradictory information that could affect the respons
 /**
  * Parse fact-check results from AI response
  */
-function parseFactCheckResults(content: string, sops: any[]): FactCheckResult[] {
+function parseFactCheckResults(content: string, sops: unknown[]): FactCheckResult[] {
   const results: FactCheckResult[] = [];
   
   // Look for patterns like "SOP-123: [Claim] - VERIFIED"

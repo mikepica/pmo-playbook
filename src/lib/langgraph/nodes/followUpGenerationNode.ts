@@ -1,6 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers } from '../state';
-import { getAIConfig, getPrompt, debugLog } from '../../ai-config';
 
 /**
  * Follow-up Generation Node
@@ -11,7 +10,7 @@ export async function followUpGenerationNode(state: WorkflowState): Promise<Part
   const startTime = Date.now();
   
   try {
-    debugLog('log_xml_processing', 'Starting follow-up generation node', {
+    console.log('log_xml_processing', 'Starting follow-up generation node', {
       confidence: state.confidence,
       strategy: state.coverageAnalysis.responseStrategy,
       gaps: state.coverageAnalysis.gaps.length
@@ -20,7 +19,7 @@ export async function followUpGenerationNode(state: WorkflowState): Promise<Part
     // Only generate follow-ups for escape hatch scenarios with multiple gaps
     if (state.coverageAnalysis.responseStrategy !== 'escape_hatch' || 
         state.coverageAnalysis.gaps.length < 2) {
-      debugLog('log_xml_processing', 'Skipping follow-up generation - conditions not met', {
+      console.log('log_xml_processing', 'Skipping follow-up generation - conditions not met', {
         strategy: state.coverageAnalysis.responseStrategy,
         gapCount: state.coverageAnalysis.gaps.length
       });
@@ -31,8 +30,8 @@ export async function followUpGenerationNode(state: WorkflowState): Promise<Part
       };
     }
 
-    const config = getAIConfig();
-    const systemPrompt = getPrompt('system_base');
+    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.3 } };
+    const systemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to generate helpful follow-up questions and suggestions.`;
 
     // Build context about what we do know
     const availableInfo = state.sopReferences.length > 0 
@@ -125,7 +124,7 @@ Keep each question under 20 words and directly related to getting better playboo
       `Generated ${followUpSuggestions.length} follow-up questions to improve coverage`
     );
 
-    debugLog('log_xml_processing', 'Follow-up generation completed', {
+    console.log('log_xml_processing', 'Follow-up generation completed', {
       questionsGenerated: followUpSuggestions.length,
       duration: Date.now() - startTime
     });

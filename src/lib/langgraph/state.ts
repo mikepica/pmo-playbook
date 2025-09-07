@@ -1,4 +1,31 @@
-import { SOPReference, CoverageAnalysis } from '../unified-query-processor';
+/**
+ * Shared types for the LangGraph workflow system
+ */
+export interface SOPReference {
+  sopId: string;
+  title: string;
+  sections: string[];
+  confidence: number;
+  keyPoints: string[];
+  applicability: string;
+}
+
+export interface CoverageAnalysis {
+  overallConfidence: number;
+  coverageLevel: 'high' | 'medium' | 'low';
+  gaps: string[];
+  responseStrategy: 'full_answer' | 'partial_answer' | 'escape_hatch';
+  queryIntent: string;
+  keyTopics: string[];
+}
+
+export interface UnifiedQueryResult {
+  answer: string;
+  sopReferences: SOPReference[];
+  coverageAnalysis: CoverageAnalysis;
+  processingTime: number;
+  tokensUsed: number;
+}
 
 /**
  * State schema for LangGraph workflow

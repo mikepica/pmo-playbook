@@ -1,4 +1,4 @@
-import { StateGraph, END, START } from '@langchain/langgraph';
+import { StateGraph, END } from '@langchain/langgraph';
 import { WorkflowState, StateValidators } from './state';
 
 // Import all nodes
@@ -78,7 +78,7 @@ function routeToResponseSynthesis(state: WorkflowState): string {
 /**
  * Final routing - end the workflow
  */
-function routeFromResponseSynthesis(state: WorkflowState): string {
+function routeFromResponseSynthesis(): string {
   return END;
 }
 
