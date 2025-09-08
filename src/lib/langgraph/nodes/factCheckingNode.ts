@@ -1,6 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers, FactCheckResult } from '../state';
-import { HumanSOP } from '@/models/HumanSOP';
 import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
@@ -35,23 +34,23 @@ export async function factCheckingNode(state: WorkflowState): Promise<Partial<Wo
     const baseSystemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to verify facts and claims made about project management processes and SOPs.`;
     const systemPrompt = getGPT5SystemPrompt(baseSystemPrompt, { verbosity: 'low', reasoning: 'high' });
 
-    // Get full content for fact-checking
-    const sopContents = await Promise.all(
-      state.sopReferences.slice(0, 3).map(async (ref) => { // Limit to top 3 SOPs
-        try {
-          const sop = await HumanSOP.findBySopId(ref.sopId);
-          return {
-            sopId: ref.sopId,
-            title: ref.title,
-            content: sop?.data.markdownContent || '',
-            confidence: ref.confidence,
-            keyPoints: ref.keyPoints
-          };
-        } catch {
-          return null;
-        }
-      })
-    );
+    // Get full content from cache for fact-checking (performance optimization)
+    console.log('Fact checking - cached SOPs available:', state.cachedSOPs ? state.cachedSOPs.size : 'NONE');
+    const sopContents = state.sopReferences.slice(0, 3).map((ref) => { // Limit to top 3 SOPs
+      const cachedSOP = state.cachedSOPs?.get(ref.sopId);
+      if (!cachedSOP) {
+        console.warn(`SOP ${ref.sopId} not found in cache for fact-checking`);
+        return null;
+      }
+      
+      return {
+        sopId: ref.sopId,
+        title: cachedSOP.data.title,
+        content: cachedSOP.data.markdownContent,
+        confidence: ref.confidence,
+        keyPoints: ref.keyPoints
+      };
+    });
 
     const validSops = sopContents.filter(sop => sop !== null);
     

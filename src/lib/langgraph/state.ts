@@ -1,6 +1,7 @@
 /**
  * Shared types for the LangGraph workflow system
  */
+import { HumanSOPRecord } from '@/models/HumanSOP';
 export interface SOPReference {
   sopId: string;
   title: string;
@@ -41,6 +42,9 @@ export interface WorkflowState {
   sopReferences: SOPReference[];
   coverageAnalysis: CoverageAnalysis;
   confidence: number;
+  
+  // Performance optimization: Cache SOPs to avoid redundant database fetches
+  cachedSOPs?: Map<string, HumanSOPRecord>;
   
   // Output data
   response: string;

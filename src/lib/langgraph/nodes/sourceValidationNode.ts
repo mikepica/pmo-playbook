@@ -1,6 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers, SourceValidationResult } from '../state';
-import { HumanSOP } from '@/models/HumanSOP';
 import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
@@ -41,26 +40,27 @@ export async function sourceValidationNode(state: WorkflowState): Promise<Partia
     const primarySop = state.sopReferences[0];
     const crossReferenceSops = state.sopReferences.slice(1, 4); // Up to 3 additional SOPs
 
-    // Fetch full content for validation
-    const sopContents = await Promise.all([
+    // Get full content from cache for validation (performance optimization)
+    const sopContents = [
       { ref: primarySop, type: 'primary' },
       ...crossReferenceSops.map(ref => ({ ref, type: 'cross-reference' as const }))
-    ].map(async ({ ref, type }) => {
-      try {
-        const sop = await HumanSOP.findBySopId(ref.sopId);
-        return {
-          type,
-          sopId: ref.sopId,
-          title: ref.title,
-          content: sop?.data.markdownContent || '',
-          confidence: ref.confidence,
-          sections: ref.sections,
-          keyPoints: ref.keyPoints
-        };
-      } catch {
+    ].map(({ ref, type }) => {
+      const cachedSOP = state.cachedSOPs?.get(ref.sopId);
+      if (!cachedSOP) {
+        console.warn(`SOP ${ref.sopId} not found in cache for source validation`);
         return null;
       }
-    }));
+      
+      return {
+        type,
+        sopId: ref.sopId,
+        title: cachedSOP.data.title,
+        content: cachedSOP.data.markdownContent,
+        confidence: ref.confidence,
+        sections: ref.sections,
+        keyPoints: ref.keyPoints
+      };
+    });
 
     const validSops = sopContents.filter(sop => sop !== null);
     const primarySopContent = validSops.find(sop => sop.type === 'primary');

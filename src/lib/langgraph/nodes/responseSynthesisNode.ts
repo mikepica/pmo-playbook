@@ -1,6 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers } from '../state';
-import { HumanSOP } from '@/models/HumanSOP';
 import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
@@ -33,31 +32,31 @@ export async function responseSynthesisNode(state: WorkflowState): Promise<Parti
       };
     }
 
-    // Get full SOP content for referenced SOPs
-    const fullSOPContent = await Promise.all(
-      state.sopReferences.map(async (ref) => {
-        try {
-          const sop = await HumanSOP.findBySopId(ref.sopId);
-          return {
-            sopId: ref.sopId,
-            title: ref.title,
-            content: sop?.data.markdownContent || 'Content not available',
-            confidence: ref.confidence,
-            sections: ref.sections,
-            keyPoints: ref.keyPoints
-          };
-        } catch {
-          return {
-            sopId: ref.sopId,
-            title: ref.title,
-            content: 'Content not available',
-            confidence: ref.confidence,
-            sections: ref.sections,
-            keyPoints: ref.keyPoints
-          };
-        }
-      })
-    );
+    // Get full SOP content from cache (performance optimization)
+    console.log('Response synthesis - cached SOPs available:', state.cachedSOPs ? state.cachedSOPs.size : 'NONE');
+    const fullSOPContent = state.sopReferences.map((ref) => {
+      const cachedSOP = state.cachedSOPs?.get(ref.sopId);
+      if (!cachedSOP) {
+        console.warn(`SOP ${ref.sopId} not found in cache, falling back to fallback content`);
+        return {
+          sopId: ref.sopId,
+          title: ref.title,
+          content: 'Content not available',
+          confidence: ref.confidence,
+          sections: ref.sections,
+          keyPoints: ref.keyPoints
+        };
+      }
+      
+      return {
+        sopId: ref.sopId,
+        title: cachedSOP.data.title,
+        content: cachedSOP.data.markdownContent,
+        confidence: ref.confidence,
+        sections: ref.sections,
+        keyPoints: ref.keyPoints
+      };
+    });
 
     // Build SOP content string
     const sopContentString = fullSOPContent.map(sop => 

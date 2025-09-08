@@ -127,6 +127,7 @@ export function createWorkflowGraph() {
       sopReferences: null,
       coverageAnalysis: null,
       confidence: null,
+      cachedSOPs: null,
       response: null,
       metadata: null,
       factCheckResults: null,

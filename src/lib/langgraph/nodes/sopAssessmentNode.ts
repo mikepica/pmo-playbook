@@ -18,7 +18,7 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
       keyTopics: state.coverageAnalysis.keyTopics 
     });
 
-    // Get all available SOPs
+    // Get all available SOPs and cache them for other nodes
     const humanSOPs = await HumanSOP.getAllActiveSOPs();
     
     if (humanSOPs.length === 0) {
@@ -35,6 +35,10 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
         shouldExit: true
       };
     }
+
+    // Create SOP cache for performance optimization
+    const sopCache = new Map(humanSOPs.map(sop => [sop.sopId, sop]));
+    console.log('SOP cache created with', sopCache.size, 'SOPs:', Array.from(sopCache.keys()));
 
     // Build SOP summaries for analysis - send COMPLETE content
     const sopSummaries = humanSOPs.map(sop => {
@@ -157,6 +161,7 @@ ${sopSummaries}`;
       ...StateHelpers.markNodeComplete(finalState, 'sopAssessment'),
       sopReferences,
       coverageAnalysis,
+      cachedSOPs: sopCache,
       currentNode: 'coverageEvaluation'
     };
 
