@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ChatHistory } from '@/models/ChatHistory';
-import OpenAI from 'openai';
+import { ChatOpenAI } from '@langchain/openai';
+import { getModelName } from '@/lib/langgraph/gpt5-config';
 
 // GET all sessions for the user (with summaries)
 export async function GET(request: Request) {
@@ -189,26 +190,17 @@ Examples of good summaries:
 Summary:`;
 
     try {
-      // Session management configuration
-    const sessionConfig = {
-      summary_model: process.env.OPENAI_MODEL || 'gpt-4o',
-      summary_temperature: 0.3,
-      summary_max_tokens: 150
-    };
-      const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-      const response = await openai.chat.completions.create({
-        model: sessionConfig.summary_model,
-        messages: [
-          { role: 'system', content: 'You are a concise summarizer. Provide very brief 3-5 word summaries.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: sessionConfig.summary_temperature,
-        max_tokens: sessionConfig.summary_max_tokens
+      // Use LangChain ChatOpenAI for consistency with rest of codebase
+      const llm = new ChatOpenAI({
+        modelName: getModelName()
       });
 
-      const summary = response.choices[0]?.message?.content?.trim() || 'Conversation';
+      const response = await llm.invoke([
+        { role: 'system', content: 'You are a concise summarizer. Provide very brief 3-5 word summaries.' },
+        { role: 'user', content: prompt }
+      ]);
+
+      const summary = (response.content as string)?.trim() || 'Conversation';
       return summary.replace(/['"]/g, ''); // Remove quotes if any
     } catch (aiError) {
       console.warn('Failed to generate AI summary:', aiError);

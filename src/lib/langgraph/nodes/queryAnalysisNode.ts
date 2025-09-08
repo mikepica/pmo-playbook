@@ -1,5 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers } from '../state';
+import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
  * Query Analysis Node
@@ -16,7 +17,7 @@ export async function queryAnalysisNode(state: WorkflowState): Promise<Partial<W
     });
 
     // System prompt for query analysis
-    const systemPrompt = `You are an expert PMO consultant. Your role is to analyze user queries to understand what information they need FROM THE COMPANY'S STANDARD OPERATING PROCEDURES (SOPs).
+    const baseSystemPrompt = `You are an expert PMO consultant. Your role is to analyze user queries to understand what information they need FROM THE COMPANY'S STANDARD OPERATING PROCEDURES (SOPs).
 
 CRITICAL INSTRUCTIONS:
 1. Identify what the user wants to find in the SOPs
@@ -24,6 +25,8 @@ CRITICAL INSTRUCTIONS:
 3. Your intent should ALWAYS be to find relevant SOP content
 4. Never assume the user wants general information - they want SOP-specific information
 5. Focus on identifying searchable terms and concepts from SOPs`;
+
+    const systemPrompt = getGPT5SystemPrompt(baseSystemPrompt, { verbosity: 'low', reasoning: 'medium' });
     
     // Build context string if available
     const contextString = state.conversationContext.length > 0 
@@ -48,9 +51,7 @@ Respond in a clear, structured format.
 
     // Make LLM call
     const llm = new ChatOpenAI({
-      modelName: process.env.OPENAI_MODEL || 'gpt-4o',
-      temperature: 0.2,
-      maxTokens: 1000
+      modelName: getModelName()
     });
 
     const response = await llm.invoke([
@@ -76,7 +77,7 @@ Respond in a clear, structured format.
     // Update state
     const updatedState = StateHelpers.addLLMCall(state, {
       node: 'queryAnalysis',
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      model: getModelName(),
       tokensIn: estimateTokens(analysisPrompt),
       tokensOut: estimateTokens(analysisContent),
       latency: Date.now() - startTime,

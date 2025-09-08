@@ -1,5 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers } from '../state';
+import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
  * Follow-up Generation Node
@@ -30,8 +31,8 @@ export async function followUpGenerationNode(state: WorkflowState): Promise<Part
       };
     }
 
-    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.3 } };
-    const systemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to generate helpful follow-up questions and suggestions.`;
+    const baseSystemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to generate helpful follow-up questions and suggestions.`;
+    const systemPrompt = getGPT5SystemPrompt(baseSystemPrompt, { verbosity: 'low', reasoning: 'medium' });
 
     // Build context about what we do know
     const availableInfo = state.sopReferences.length > 0 
@@ -82,9 +83,7 @@ Keep each question under 20 words and directly related to getting better playboo
 `;
 
     const llm = new ChatOpenAI({
-      modelName: config.processing?.model || 'gpt-4o',
-      temperature: 0.6, // Higher temperature for creative question generation
-      maxTokens: 1000
+      modelName: getModelName()
     });
 
     const response = await llm.invoke([
@@ -110,7 +109,7 @@ Keep each question under 20 words and directly related to getting better playboo
     // Update state with LLM call metadata
     const updatedState = StateHelpers.addLLMCall(state, {
       node: 'followUpGeneration',
-      model: config.processing?.model || 'gpt-4o',
+      model: getModelName(),
       tokensIn: estimateTokens(followUpPrompt),
       tokensOut: estimateTokens(followUpContent),
       latency: Date.now() - startTime,

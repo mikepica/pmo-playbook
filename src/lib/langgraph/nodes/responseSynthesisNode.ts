@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers } from '../state';
 import { HumanSOP } from '@/models/HumanSOP';
+import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
  * Response Synthesis Node
@@ -17,12 +18,13 @@ export async function responseSynthesisNode(state: WorkflowState): Promise<Parti
       confidence: state.confidence
     });
 
-    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.3, max_tokens: 8000 } };
-    const systemPrompt = `You are an expert PMO consultant. Your role is to directly answer the user's specific question by synthesizing relevant information from the company's SOPs. Focus on what the user asked for, not general SOP descriptions.`;
+    const baseSystemPrompt = `You are an expert PMO consultant. Your role is to directly answer the user's specific question by synthesizing relevant information from the company's SOPs. Focus on what the user asked for, not general SOP descriptions.`;
+    
+    const systemPrompt = getGPT5SystemPrompt(baseSystemPrompt, { verbosity: 'medium', reasoning: 'medium' });
     
     // Handle escape hatch case early
     if (state.coverageAnalysis.responseStrategy === 'escape_hatch') {
-      const escapeResponse = generateEscapeHatchResponse(config, state.coverageAnalysis.queryIntent);
+      const escapeResponse = generateEscapeHatchResponse(state.coverageAnalysis.queryIntent);
       
       return {
         ...StateHelpers.markComplete(state),
@@ -104,9 +106,7 @@ ${sopContentString}`;
 
     // Make AI call
     const llm = new ChatOpenAI({
-      modelName: config.processing?.model || 'gpt-4o',
-      temperature: config.processing?.temperature || 0.3,
-      maxTokens: config.processing?.max_tokens || 8000
+      modelName: getModelName()
     });
 
     const response = await llm.invoke([
@@ -122,7 +122,7 @@ ${sopContentString}`;
     // Update state with LLM call metadata
     const updatedState = StateHelpers.addLLMCall(state, {
       node: 'responseSynthesis',
-      model: config.processing?.model || 'gpt-4o',
+      model: getModelName(),
       tokensIn: estimateTokens(fullPrompt),
       tokensOut: estimateTokens(answer),
       latency: Date.now() - startTime,
@@ -146,8 +146,7 @@ ${sopContentString}`;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error in response synthesis';
     
     // Fallback to escape hatch on error
-    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.3, max_tokens: 8000 } };
-    const escapeResponse = generateEscapeHatchResponse(config, state.coverageAnalysis.queryIntent);
+    const escapeResponse = generateEscapeHatchResponse(state.coverageAnalysis.queryIntent);
     
     return {
       ...StateHelpers.addError(state, `Response synthesis failed: ${errorMessage}`),
@@ -161,7 +160,7 @@ ${sopContentString}`;
 /**
  * Generate escape hatch response when coverage is insufficient
  */
-function generateEscapeHatchResponse(_config: { processing: { model: string; temperature: number; max_tokens: number } }, queryIntent: string): string {
+function generateEscapeHatchResponse(queryIntent: string): string {
   const escapeTemplate = "The Playbook does not explicitly provide guidance for {topic}.\n\n📝 This appears to be a gap in our Playbook. Please leave feedback so we can add appropriate guidance for this topic.";
   
   return escapeTemplate.replace('{topic}', queryIntent);

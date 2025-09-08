@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers, SourceValidationResult } from '../state';
 import { HumanSOP } from '@/models/HumanSOP';
+import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
  * Source Validation Node
@@ -33,8 +34,8 @@ export async function sourceValidationNode(state: WorkflowState): Promise<Partia
       };
     }
 
-    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.2 } };
-    const systemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to validate sources and cross-reference information across SOPs.`;
+    const baseSystemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to validate sources and cross-reference information across SOPs.`;
+    const systemPrompt = getGPT5SystemPrompt(baseSystemPrompt, { verbosity: 'low', reasoning: 'high' });
 
     // Get related SOPs for cross-referencing
     const primarySop = state.sopReferences[0];
@@ -118,9 +119,7 @@ CONFIDENCE_ADJUSTMENT: [INCREASE/DECREASE/MAINTAIN] - [reason]
 `;
 
     const llm = new ChatOpenAI({
-      modelName: config.processing?.model || 'gpt-4o',
-      temperature: 0.2, // Low temperature for analytical work
-      maxTokens: 2000
+      modelName: getModelName()
     });
 
     const response = await llm.invoke([
@@ -169,7 +168,7 @@ CONFIDENCE_ADJUSTMENT: [INCREASE/DECREASE/MAINTAIN] - [reason]
     // Update state with LLM call metadata
     const updatedState = StateHelpers.addLLMCall(state, {
       node: 'sourceValidation',
-      model: config.processing?.model || 'gpt-4o',
+      model: getModelName(),
       tokensIn: estimateTokens(validationPrompt),
       tokensOut: estimateTokens(validationContent),
       latency: Date.now() - startTime,

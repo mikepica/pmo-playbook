@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers, SOPReference } from '../state';
 import { HumanSOP } from '@/models/HumanSOP';
+import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
  * SOP Assessment Node
@@ -46,7 +47,7 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
     }).join('\n\n');
 
     // System prompt for SOP assessment
-    const systemPrompt = `You are an expert PMO consultant analyzing company SOPs for relevant content.
+    const baseSystemPrompt = `You are an expert PMO consultant analyzing company SOPs for relevant content.
 
 CRITICAL INSTRUCTIONS:
 1. Search through each SOP for content matching the user's query
@@ -56,6 +57,8 @@ CRITICAL INSTRUCTIONS:
 5. The user is looking for information that exists in the SOPs
 6. If an SOP mentions project managers, roles, responsibilities - it's relevant!
 7. Use XML structure exactly as specified - this is critical for parsing`;
+
+    const systemPrompt = getGPT5SystemPrompt(baseSystemPrompt, { verbosity: 'high', reasoning: 'high' });
 
     const analysisPrompt = `Analyze the provided SOPs and determine their relevance to the user query. 
 
@@ -93,11 +96,9 @@ If an SOP discusses project managers, their roles, or responsibilities, it MUST 
 Available SOPs:
 ${sopSummaries}`;
 
-    // Make AI call with increased token limit for large context
+    // Make AI call
     const llm = new ChatOpenAI({
-      modelName: process.env.OPENAI_MODEL || 'gpt-4o',
-      temperature: 0.2,
-      maxTokens: 16000  // Increased from 8000 to handle full SOP content
+      modelName: getModelName()
     });
 
     const response = await llm.invoke([
@@ -132,7 +133,7 @@ ${sopSummaries}`;
     // Update state with LLM call metadata
     const updatedState = StateHelpers.addLLMCall(state, {
       node: 'sopAssessment',
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      model: getModelName(),
       tokensIn: estimateTokens(fullPrompt),
       tokensOut: estimateTokens(xmlContent),
       latency: Date.now() - startTime,

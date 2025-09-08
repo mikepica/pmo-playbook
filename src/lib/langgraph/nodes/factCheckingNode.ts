@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers, FactCheckResult } from '../state';
 import { HumanSOP } from '@/models/HumanSOP';
+import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
  * Fact Checking Node
@@ -31,8 +32,8 @@ export async function factCheckingNode(state: WorkflowState): Promise<Partial<Wo
       };
     }
 
-    const config = { processing: { model: process.env.OPENAI_MODEL || 'gpt-4o', temperature: 0.2 } };
-    const systemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to verify facts and claims made about project management processes and SOPs.`;
+    const baseSystemPrompt = `You are an expert PMO consultant with 15+ years of experience. Your role is to verify facts and claims made about project management processes and SOPs.`;
+    const systemPrompt = getGPT5SystemPrompt(baseSystemPrompt, { verbosity: 'low', reasoning: 'high' });
 
     // Get full content for fact-checking
     const sopContents = await Promise.all(
@@ -91,9 +92,7 @@ Focus on identifying any contradictory information that could affect the respons
 `;
 
     const llm = new ChatOpenAI({
-      modelName: config.processing?.model || 'gpt-4o',
-      temperature: 0.1, // Low temperature for fact-checking
-      maxTokens: 2000
+      modelName: getModelName()
     });
 
     const response = await llm.invoke([
@@ -132,7 +131,7 @@ Focus on identifying any contradictory information that could affect the respons
     // Update state with LLM call metadata
     const updatedState = StateHelpers.addLLMCall(state, {
       node: 'factChecking',
-      model: config.processing?.model || 'gpt-4o',
+      model: getModelName(),
       tokensIn: estimateTokens(factCheckPrompt),
       tokensOut: estimateTokens(factCheckContent),
       latency: Date.now() - startTime,
