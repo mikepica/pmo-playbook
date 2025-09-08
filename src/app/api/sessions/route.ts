@@ -200,7 +200,6 @@ Summary:`;
           { role: 'system', content: 'You are a concise summarizer. Provide very brief 3-5 word summaries.' },
           { role: 'user', content: prompt }
         ],
-        temperature: sessionConfig.summary_temperature,
         max_tokens: sessionConfig.summary_max_tokens
       });
 

@@ -12,7 +12,6 @@ export interface SOPSelectionConfig {
 
 export interface ProcessingConfig {
   model: string;
-  temperature: number;
   max_tokens: number;
   max_response_words: number;
 }
@@ -28,8 +27,6 @@ export interface EscapeHatchConfig {
 export interface DefaultsConfig {
   primary_model: string;
   lightweight_model: string;
-  creative_temperature: number;
-  analytical_temperature: number;
 }
 
 export interface FeatureFlags {
@@ -43,7 +40,6 @@ export interface FeatureFlags {
 
 export interface SessionManagementConfig {
   summary_model: string;
-  summary_temperature: number;
   summary_max_tokens: number;
 }
 
@@ -55,6 +51,9 @@ export interface DebugConfig {
   log_response_modes: boolean;
   log_chain_of_thought_steps: boolean;
   log_context_usage: boolean;
+  log_xml_processing: boolean;
+  log_coverage_analysis: boolean;
+  save_comprehensive_triggers: boolean;
 }
 
 export interface SystemConfig {
@@ -201,10 +200,6 @@ class AIConfigManager {
     }
 
     if (config.processing) {
-      if (config.processing.temperature < 0 || config.processing.temperature > 2) {
-        throw new Error(`Invalid processing temperature: ${config.processing.temperature} (must be 0-2)`);
-      }
-      
       if (config.processing.max_tokens < 100 || config.processing.max_tokens > 4000) {
         throw new Error(`Invalid max_tokens: ${config.processing.max_tokens} (must be 100-4000)`);
       }
@@ -275,10 +270,8 @@ export const getEscapeHatchConfig = () => {
 export const getDefaultsConfig = () => {
   const config = aiConfig.getConfig();
   return config.defaults || {
-    primary_model: 'gpt-4o',
-    lightweight_model: 'gpt-4o-mini',
-    creative_temperature: 0.6,
-    analytical_temperature: 0.3
+    primary_model: 'gpt-5',
+    lightweight_model: 'gpt-5'
   };
 };
 
@@ -294,7 +287,6 @@ export const getSessionManagementConfig = () => {
     // Return defaults if not configured
     return {
       summary_model: defaults.lightweight_model,
-      summary_temperature: defaults.analytical_temperature,
       summary_max_tokens: 20
     };
   }

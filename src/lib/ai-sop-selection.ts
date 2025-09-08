@@ -156,7 +156,6 @@ Use "general_knowledge" strategy if the question is better answered with general
     console.error('Error in selectBestSOPs:', error);
     
     // Fallback strategy
-    const config = getAIConfig();
     return {
       strategy: 'general_knowledge',
       selectedSops: [],
@@ -257,7 +256,6 @@ export async function generateMultiSOPAnswer(
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: config.processing.temperature || defaults.analytical_temperature,
       max_tokens: config.processing.max_tokens || 2000
     });
 
@@ -359,7 +357,6 @@ Instructions:
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: config.processing.temperature || defaults.creative_temperature,
       max_tokens: config.processing.max_tokens || 2000
     });
 
@@ -428,7 +425,7 @@ function parseSOPSelectionResponse(content: string, availableSOPs: { sopId: stri
 
     return result;
 
-  } catch (parseError) {
+  } catch {
     throw new Error(`Failed to parse SOP selection response: ${content}`);
   }
 }
@@ -455,7 +452,7 @@ function parseGeneralKnowledgeResponse(content: string): GeneralKnowledgeResult 
       bestPractices: aiResponse.bestPractices || []
     };
 
-  } catch (parseError) {
+  } catch {
     throw new Error(`Failed to parse general knowledge response: ${content}`);
   }
 }

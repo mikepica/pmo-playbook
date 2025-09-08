@@ -193,13 +193,11 @@ ${sopSummaries}`;
     // Make AI call
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: config.sop_selection?.model || config.processing?.model || 'gpt-4o',
+      model: config.sop_selection?.model || config.processing?.model || 'gpt-5',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: fullPrompt }
-      ],
-      temperature: config.sop_selection?.temperature || config.processing?.temperature || 0.2,
-      max_tokens: 8000
+      ]
     });
 
     const xmlContent = response.choices[0]?.message?.content;
@@ -330,13 +328,11 @@ ${sopContentString}`;
     // Make AI call
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: config.processing?.model || 'gpt-4o',
+      model: config.processing?.model || 'gpt-5',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: fullPrompt }
-      ],
-      temperature: config.processing?.temperature || 0.3,
-      max_tokens: config.processing?.max_tokens || 8000
+      ]
     });
 
     const answer = response.choices[0]?.message?.content;
@@ -371,7 +367,7 @@ export async function processQuery(
   conversationContext: Array<{role: 'user' | 'assistant', content: string}> = []
 ): Promise<UnifiedQueryResult> {
   const startTime = Date.now();
-  let totalTokensUsed = 0;
+  const totalTokensUsed = 0;
 
   debugLog('log_xml_processing', 'Starting unified query processing', { 
     query: userQuery,

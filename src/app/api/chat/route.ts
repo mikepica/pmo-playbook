@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       // Prepare SOP ID for storage (handle multiple SOPs)
       const sopIdForStorage = answerResult.sopSources.length > 0 
         ? answerResult.sopSources.map(s => s.sopId).join(',')
-        : null;
+        : undefined;
       
       if (existingChat) {
         // Add user message

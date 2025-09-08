@@ -35,10 +35,12 @@ interface Message {
     processingTime?: number;
     tokensUsed?: number;
     
-    // Legacy fields
-    reasoning?: string;
+    // Additional fields from unified system
     responseMode?: string;
     usedChainOfThought?: boolean;
+    
+    // Legacy fields
+    reasoning?: string;
   };
   suggestedChange?: {
     detected: boolean;

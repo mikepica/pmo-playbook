@@ -14,8 +14,8 @@ prompts_config:
 
 processing:
   # Primary model for all operations
-  model: "gpt-4o"
-  temperature: 0.3
+  model: "gpt-5"
+  max_tokens: 4000
   max_response_words: 1500
   
   # XML structure processing
@@ -35,13 +35,9 @@ processing:
 
 defaults:
   # Primary model for most operations
-  primary_model: "gpt-4o"
+  primary_model: "gpt-5"
   # Lightweight model for simple tasks
-  lightweight_model: "gpt-4o-mini" 
-  # Default temperature for creative responses
-  creative_temperature: 0.6
-  # Default temperature for analytical responses
-  analytical_temperature: 0.3
+  lightweight_model: "gpt-5"
 
 # ============================================================================
 # ESCAPE HATCH CONFIGURATION
@@ -135,8 +131,7 @@ feedback_system:
 
 sop_selection:
   # How to select SOPs for a query
-  model: "gpt-4o"
-  temperature: 0.2
+  model: "gpt-5"
   selection_method: "xml_structured"
   min_confidence: 0.3  # Lower threshold to catch partial matches
   max_sops: 3
@@ -153,8 +148,7 @@ sop_selection:
 
 session_management:
   # Model for generating session summaries
-  summary_model: "gpt-4o-mini"
-  summary_temperature: 0.3
+  summary_model: "gpt-5"
 
 # ============================================================================
 # FEATURE FLAGS - Enable/disable specific features
@@ -190,8 +184,6 @@ environments:
       log_xml_processing: true
       log_context_usage: true
       log_coverage_analysis: true
-    processing:
-      temperature: 0.4  # Slightly higher for testing variety
     prompts_config:
       active_prompt_set: "default"
         
@@ -208,10 +200,10 @@ environments:
         
   testing:
     processing:
-      model: "gpt-4o-mini"  # Use cheaper model for tests
+      model: "gpt-5"  # Use GPT-5 for tests
       max_response_words: 500  # Shorter for faster tests
     sop_selection:
-      model: "gpt-4o-mini"
+      model: "gpt-5"
     escape_hatch:
       trigger_threshold: 0.3  # Lower threshold to test escape scenarios
     prompts_config:
