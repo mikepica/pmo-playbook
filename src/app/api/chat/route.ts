@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { processQueryWithLangGraph } from '@/lib/langgraph-processor';
 import { UnifiedQueryResult } from '@/lib/langgraph/state';
 import { ChatHistory } from '@/models/ChatHistory';
+import { config } from '@/lib/config';
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!config.openaiApiKey) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 

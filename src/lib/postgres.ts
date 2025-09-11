@@ -9,14 +9,14 @@ let pool: Pool | undefined;
 export function getPostgresPool(): Pool {
   if (!pool) {
     const connectionString = process.env.DATABASE_URL;
-    
+
     if (!connectionString) {
       throw new Error('DATABASE_URL is not defined in environment variables');
     }
-    
+
     // Detect if we're using Neon (serverless) or standard PostgreSQL
     const isNeon = connectionString.includes('neon.tech') || process.env.USE_NEON === 'true';
-    
+
     if (isNeon) {
       // Use Neon serverless driver
       pool = new NeonPool({
@@ -31,7 +31,7 @@ export function getPostgresPool(): Pool {
       });
     }
   }
-  
+
   return pool;
 }
 

@@ -1,9 +1,11 @@
 /**
  * GPT-5 Configuration Helper
- * 
+ *
  * Since LangChain JS doesn't yet support GPT-5's reasoning_effort and verbosity parameters,
  * this helper manages behavior through prompt engineering.
  */
+
+import { config } from '@/lib/config';
 
 export type VerbosityLevel = 'low' | 'medium' | 'high';
 export type ReasoningLevel = 'minimal' | 'low' | 'medium' | 'high';
@@ -83,18 +85,18 @@ Response Guidelines: ${behaviorInstructions}`;
 }
 
 /**
- * Get model name from environment or default
+ * Get model name from config or default
  */
 export function getModelName(): string {
-  return process.env.OPENAI_MODEL || 'gpt-5';
+  return config.openaiModel;
 }
 
 /**
- * Get default GPT-5 configuration from environment
+ * Get default GPT-5 configuration from config
  */
 export function getDefaultConfig(): GPT5Config {
   return {
-    verbosity: (process.env.GPT5_VERBOSITY as VerbosityLevel) || 'medium',
-    reasoning: (process.env.GPT5_REASONING as ReasoningLevel) || 'medium'
+    verbosity: config.gpt5Verbosity as VerbosityLevel,
+    reasoning: config.gpt5Reasoning as ReasoningLevel
   };
 }
