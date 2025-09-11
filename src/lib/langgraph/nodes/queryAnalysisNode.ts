@@ -1,6 +1,12 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers } from '../state';
 import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
+import { 
+  loadSOPsWithTiming, 
+  runInParallel, 
+  isParallelProcessingEnabled,
+  addParallelMetadata
+} from '../parallel-utils';
 
 /**
  * Query Analysis Node
@@ -49,66 +55,142 @@ Remember: The user is asking about content that should be IN THE SOPs, not gener
 Respond in a clear, structured format.
 `;
 
-    // Make LLM call
-    const llm = new ChatOpenAI({
-      modelName: getModelName()
-    });
-
-    const response = await llm.invoke([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: analysisPrompt }
-    ]);
-
-    const analysisContent = response.content as string;
+    // Check if parallel processing is enabled
+    const parallelEnabled = isParallelProcessingEnabled();
     
-    if (!analysisContent) {
-      throw new Error('No response from AI for query analysis');
+    if (parallelEnabled) {
+      console.log('🚀 Parallel processing enabled - running query analysis and SOP loading concurrently');
+      
+      // Run query analysis and SOP loading in parallel
+      const parallelResults = await runInParallel({
+        queryAnalysis: performQueryAnalysis(systemPrompt, analysisPrompt),
+        sopLoading: loadSOPsWithTiming()
+      }, {
+        timeout: 30000,
+        failFast: false,
+        logResults: true
+      });
+      
+      // Extract results
+      const queryResult = parallelResults.queryAnalysis;
+      const sopResult = parallelResults.sopLoading;
+      
+      if (!queryResult.success) {
+        throw queryResult.error || new Error('Query analysis failed');
+      }
+      
+      const { intent, keyTopics, specificityLevel, initialConfidence, analysisContent } = queryResult.result;
+      
+      // Update state with both query analysis and SOP data
+      let updatedState = StateHelpers.addLLMCall(state, {
+        node: 'queryAnalysis',
+        model: getModelName(),
+        tokensIn: estimateTokens(analysisPrompt),
+        tokensOut: estimateTokens(analysisContent),
+        latency: queryResult.duration,
+        success: true
+      });
+      
+      updatedState = StateHelpers.addConfidenceEntry(
+        updatedState,
+        'queryAnalysis',
+        initialConfidence,
+        'Initial query analysis confidence based on clarity and specificity'
+      );
+      
+      // Add parallel operation metadata
+      const queryMeta = addParallelMetadata(updatedState, 'queryAnalysis', queryResult);
+      const sopMeta = addParallelMetadata(updatedState, 'sopLoading', sopResult);
+      
+      // Combine metadata into final state
+      const finalState = {
+        ...updatedState,
+        ...queryMeta,
+        ...sopMeta,
+        metadata: {
+          ...updatedState.metadata,
+          ...queryMeta.metadata,
+          ...sopMeta.metadata,
+          parallelOperations: [
+            ...(updatedState.metadata.parallelOperations || []),
+            ...(queryMeta.metadata?.parallelOperations || []),
+            ...(sopMeta.metadata?.parallelOperations || [])
+          ]
+        }
+      };
+      
+      console.log('✅ Parallel query analysis completed', {
+        intent,
+        keyTopics,
+        specificityLevel,
+        confidence: initialConfidence,
+        queryDuration: queryResult.duration,
+        sopDuration: sopResult.duration,
+        totalDuration: Date.now() - startTime,
+        sopLoadSuccess: sopResult.success
+      });
+      
+      return {
+        ...StateHelpers.markNodeComplete(finalState, 'queryAnalysis'),
+        coverageAnalysis: {
+          ...state.coverageAnalysis,
+          queryIntent: intent,
+          keyTopics: keyTopics,
+          overallConfidence: initialConfidence
+        },
+        // Pre-load SOP data for next node if successful
+        ...(sopResult.success ? {
+          preloadedSOPs: sopResult.result,
+          sopPreloadSuccess: true
+        } : {
+          sopPreloadSuccess: false
+        }),
+        currentNode: 'sopAssessment'
+      };
+      
+    } else {
+      // Sequential processing (original behavior)
+      console.log('⏭️  Sequential processing - running query analysis only');
+      
+      const { intent, keyTopics, specificityLevel, initialConfidence, analysisContent } = 
+        await performQueryAnalysis(systemPrompt, analysisPrompt);
+      
+      // Update state
+      const updatedState = StateHelpers.addLLMCall(state, {
+        node: 'queryAnalysis',
+        model: getModelName(),
+        tokensIn: estimateTokens(analysisPrompt),
+        tokensOut: estimateTokens(analysisContent),
+        latency: Date.now() - startTime,
+        success: true
+      });
+
+      const finalState = StateHelpers.addConfidenceEntry(
+        updatedState,
+        'queryAnalysis',
+        initialConfidence,
+        'Initial query analysis confidence based on clarity and specificity'
+      );
+
+      console.log('Query analysis completed (sequential)', {
+        intent,
+        keyTopics,
+        specificityLevel,
+        confidence: initialConfidence,
+        duration: Date.now() - startTime
+      });
+
+      return {
+        ...StateHelpers.markNodeComplete(finalState, 'queryAnalysis'),
+        coverageAnalysis: {
+          ...state.coverageAnalysis,
+          queryIntent: intent,
+          keyTopics: keyTopics,
+          overallConfidence: initialConfidence
+        },
+        currentNode: 'sopAssessment'
+      };
     }
-
-    // Parse the analysis (simplified parsing for now)
-    const intent = extractSection(analysisContent, 'Intent') || state.query;
-    const keyTopicsText = extractSection(analysisContent, 'Key Topics') || '';
-    const keyTopics = keyTopicsText.split(',').map(t => t.trim()).filter(t => t);
-    const specificityLevel = extractSection(analysisContent, 'Specificity Level') || 'Medium';
-
-    // Calculate initial confidence based on query clarity
-    const initialConfidence = calculateQueryConfidence(state.query, keyTopics.length, specificityLevel);
-
-    // Update state
-    const updatedState = StateHelpers.addLLMCall(state, {
-      node: 'queryAnalysis',
-      model: getModelName(),
-      tokensIn: estimateTokens(analysisPrompt),
-      tokensOut: estimateTokens(analysisContent),
-      latency: Date.now() - startTime,
-      success: true
-    });
-
-    const finalState = StateHelpers.addConfidenceEntry(
-      updatedState,
-      'queryAnalysis',
-      initialConfidence,
-      'Initial query analysis confidence based on clarity and specificity'
-    );
-
-    console.log('Query analysis completed', {
-      intent,
-      keyTopics,
-      specificityLevel,
-      confidence: initialConfidence,
-      duration: Date.now() - startTime
-    });
-
-    return {
-      ...StateHelpers.markNodeComplete(finalState, 'queryAnalysis'),
-      coverageAnalysis: {
-        ...state.coverageAnalysis,
-        queryIntent: intent,
-        keyTopics: keyTopics,
-        overallConfidence: initialConfidence
-      },
-      currentNode: 'sopAssessment'
-    };
 
   } catch (error) {
     console.error('Error in query analysis node:', error);
@@ -121,6 +203,53 @@ Respond in a clear, structured format.
       retryCount: state.retryCount + 1
     };
   }
+}
+
+/**
+ * Perform query analysis (can be run in parallel)
+ */
+async function performQueryAnalysis(
+  systemPrompt: string, 
+  analysisPrompt: string
+): Promise<{
+  intent: string;
+  keyTopics: string[];
+  specificityLevel: string;
+  initialConfidence: number;
+  analysisContent: string;
+}> {
+  // Make LLM call
+  const llm = new ChatOpenAI({
+    modelName: getModelName()
+  });
+
+  const response = await llm.invoke([
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: analysisPrompt }
+  ]);
+
+  const analysisContent = response.content as string;
+  
+  if (!analysisContent) {
+    throw new Error('No response from AI for query analysis');
+  }
+
+  // Parse the analysis (simplified parsing for now)
+  const intent = extractSection(analysisContent, 'Intent') || 'Unknown intent';
+  const keyTopicsText = extractSection(analysisContent, 'Key Topics') || '';
+  const keyTopics = keyTopicsText.split(',').map(t => t.trim()).filter(t => t);
+  const specificityLevel = extractSection(analysisContent, 'Specificity Level') || 'Medium';
+
+  // Calculate initial confidence based on query clarity
+  const initialConfidence = calculateQueryConfidence(intent, keyTopics.length, specificityLevel);
+
+  return {
+    intent,
+    keyTopics,
+    specificityLevel,
+    initialConfidence,
+    analysisContent
+  };
 }
 
 /**

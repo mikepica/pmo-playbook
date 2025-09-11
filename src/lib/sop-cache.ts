@@ -317,7 +317,7 @@ class SOPCacheManager {
   private calculateMemoryUsage(): number {
     let totalSize = 0;
     
-    for (const entry of this.cache.values()) {
+    for (const entry of Array.from(this.cache.values())) {
       // Rough calculation: each string character ≈ 2 bytes in memory
       totalSize += (entry.sopId.length + entry.title.length + 
                    entry.fullContent.length + entry.summary.length) * 2;

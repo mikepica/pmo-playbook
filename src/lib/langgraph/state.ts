@@ -46,6 +46,10 @@ export interface WorkflowState {
   // Performance optimization: Cache SOPs to avoid redundant database fetches
   cachedSOPs?: Map<string, HumanSOPRecord>;
   
+  // Parallel processing: Preloaded SOP data
+  preloadedSOPs?: any; // SOPLoadResult from parallel processing
+  sopPreloadSuccess?: boolean;
+  
   // Output data
   response: string;
   
@@ -68,6 +72,14 @@ export interface WorkflowState {
   shouldExit: boolean;
 }
 
+export interface ParallelOperationInfo {
+  operation: string;
+  duration: number;
+  success: boolean;
+  timestamp: number;
+  error?: string;
+}
+
 export interface ProcessingMetadata {
   startTime: number;
   endTime?: number;
@@ -76,6 +88,7 @@ export interface ProcessingMetadata {
   nodesExecuted: string[];
   llmCalls: LLMCallMetadata[];
   confidenceHistory: ConfidenceEntry[];
+  parallelOperations?: ParallelOperationInfo[];
 }
 
 export interface LLMCallMetadata {

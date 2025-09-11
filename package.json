@@ -25,7 +25,8 @@
     "cache:warm": "tsx scripts/warm-sop-cache.ts",
     "cache:test": "tsx scripts/test-sop-cache.ts",
     "cache:debug": "tsx scripts/debug-cache-performance.ts",
-    "routing:test": "tsx scripts/test-workflow-routing.ts"
+    "routing:test": "tsx scripts/test-workflow-routing.ts",
+    "parallel:test": "tsx scripts/test-parallel-processing.ts"
   },
   "dependencies": {
     "@langchain/community": "^0.3.54",

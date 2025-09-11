@@ -19,16 +19,47 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
       keyTopics: state.coverageAnalysis.keyTopics 
     });
 
-    // Get all available SOPs from cache (performance optimized)
-    const cacheStats = getSOPCacheStats();
-    console.log('SOP cache stats before assessment:', {
-      totalSOPs: cacheStats.totalSOPs,
-      cacheHits: cacheStats.cacheHits,
-      cacheMisses: cacheStats.cacheMisses,
-      memoryUsageMB: cacheStats.memoryUsageMB
-    });
+    // Check if SOPs were preloaded from parallel processing
+    let sopEntries, cacheStats, legacySOPCache;
+    
+    if (state.sopPreloadSuccess && state.preloadedSOPs) {
+      console.log('✅ Using preloaded SOPs from parallel processing');
+      sopEntries = state.preloadedSOPs.sopEntries;
+      cacheStats = state.preloadedSOPs.cacheStats;
+      legacySOPCache = state.preloadedSOPs.legacySOPCache;
+      
+      console.log('Preloaded SOP data:', {
+        sopCount: sopEntries.length,
+        memoryUsageMB: cacheStats.memoryUsageMB,
+        source: 'parallel-preload'
+      });
+    } else {
+      console.log('⏭️  Loading SOPs sequentially (no preload available)');
+      
+      // Get all available SOPs from cache (performance optimized)
+      cacheStats = getSOPCacheStats();
+      console.log('SOP cache stats before assessment:', {
+        totalSOPs: cacheStats.totalSOPs,
+        cacheHits: cacheStats.cacheHits,
+        cacheMisses: cacheStats.cacheMisses,
+        memoryUsageMB: cacheStats.memoryUsageMB
+      });
 
-    const sopEntries = await getAllActiveSOPs();
+      sopEntries = await getAllActiveSOPs();
+      
+      // Create legacy SOP cache for downstream nodes that expect HumanSOPRecord format
+      legacySOPCache = new Map();
+      for (const entry of sopEntries) {
+        const legacyRecord = {
+          sopId: entry.sopId,
+          data: {
+            title: entry.title,
+            markdownContent: entry.fullContent
+          }
+        };
+        legacySOPCache.set(entry.sopId, legacyRecord);
+      }
+    }
     
     if (sopEntries.length === 0) {
       return {
@@ -45,24 +76,12 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
       };
     }
 
-    // Create legacy SOP cache for downstream nodes that expect HumanSOPRecord format
-    // Convert cache entries back to HumanSOPRecord format for compatibility
-    const legacySOPCache = new Map();
-    for (const entry of sopEntries) {
-      const legacyRecord = {
-        sopId: entry.sopId,
-        data: {
-          title: entry.title,
-          markdownContent: entry.fullContent
-        }
-      };
-      legacySOPCache.set(entry.sopId, legacyRecord);
-    }
-    
-    console.log('SOP assessment using cached data:', {
+    console.log('SOP assessment proceeding:', {
       sopCount: sopEntries.length,
       sopIds: sopEntries.map(s => s.sopId),
-      cacheHitRate: cacheStats.cacheHits / (cacheStats.cacheHits + cacheStats.cacheMisses) * 100
+      dataSource: state.sopPreloadSuccess ? 'parallel-preload' : 'sequential-load',
+      cacheHitRate: cacheStats.cacheHits && cacheStats.cacheMisses ? 
+        Math.round(cacheStats.cacheHits / (cacheStats.cacheHits + cacheStats.cacheMisses) * 100) : 'N/A'
     });
 
     // Build SOP summaries for analysis - send COMPLETE content
