@@ -21,7 +21,11 @@
     "vector:setup": "tsx scripts/setup-pgvector.ts",
     "langsmith:test": "tsx scripts/test-langsmith-connection.ts",
     "langgraph:verify-phase2": "tsx scripts/verify-phase2-completion.ts",
-    "langgraph:test-phase2": "tsx scripts/test-phase2-complete.ts"
+    "langgraph:test-phase2": "tsx scripts/test-phase2-complete.ts",
+    "cache:warm": "tsx scripts/warm-sop-cache.ts",
+    "cache:test": "tsx scripts/test-sop-cache.ts",
+    "cache:debug": "tsx scripts/debug-cache-performance.ts",
+    "routing:test": "tsx scripts/test-workflow-routing.ts"
   },
   "dependencies": {
     "@langchain/community": "^0.3.54",

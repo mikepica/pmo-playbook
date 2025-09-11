@@ -28,9 +28,10 @@ export const NODE_NAMES = {
 } as const;
 
 /**
- * Conditional routing function - determines next node based on state
+ * Optimized conditional routing function - skips unnecessary nodes for performance
  */
-function routeAfterCoverageEvaluation(state: WorkflowState): string {
+function createOptimizedCoverageRouter(config: WorkflowConfig = DEFAULT_WORKFLOW_CONFIG) {
+  return function routeAfterCoverageEvaluation(state: WorkflowState): string {
   // Handle error cases first
   if (StateValidators.hasErrors(state) && StateValidators.shouldRetry(state)) {
     return NODE_NAMES.QUERY_ANALYSIS; // Retry from beginning
@@ -40,29 +41,110 @@ function routeAfterCoverageEvaluation(state: WorkflowState): string {
     return END;
   }
 
-  // Route based on coverage evaluation results
+  // Get routing parameters
   const strategy = state.coverageAnalysis.responseStrategy;
   const sopCount = state.sopReferences.length;
-  const confidence = state.confidence;
-  const gapCount = state.coverageAnalysis.gaps.length;
+  const confidence = state.coverageAnalysis.overallConfidence || state.confidence || 0;
+  const gapCount = state.coverageAnalysis.gaps?.length || 0;
 
-  // High confidence with multiple SOPs -> fact checking
-  if (strategy === 'full_answer' && sopCount > 1 && confidence > 0.8) {
-    return NODE_NAMES.FACT_CHECKING;
+  console.log('Workflow routing decision:', {
+    strategy,
+    sopCount,
+    confidence,
+    gapCount,
+    query: state.query.substring(0, 50) + '...'
+  });
+
+    // Check if early exit optimizations are enabled
+    if (!config.enableEarlyExit) {
+      // Original routing logic for compatibility
+      if (strategy === 'full_answer' && sopCount > 1 && confidence > 0.8) {
+        return NODE_NAMES.FACT_CHECKING;
+      }
+      if (strategy === 'partial_answer' && gapCount > 0 && sopCount > 1) {
+        return NODE_NAMES.SOURCE_VALIDATION;
+      }
+      if (strategy === 'escape_hatch' && gapCount > 2) {
+        return NODE_NAMES.FOLLOW_UP_GENERATION;
+      }
+      return NODE_NAMES.RESPONSE_SYNTHESIS;
+    }
+
+    // OPTIMIZATION: Early exit for high-confidence queries
+    const highThreshold = config.highConfidenceThreshold || 0.8;
+    if (confidence > highThreshold && gapCount === 0 && strategy === 'full_answer') {
+      console.log(`🚀 High confidence route (>${highThreshold}): Skipping extra nodes, going directly to response synthesis`);
+      return NODE_NAMES.RESPONSE_SYNTHESIS;
+    }
+
+    // OPTIMIZATION: Early exit for escape hatch cases  
+    const lowThreshold = config.lowConfidenceThreshold || 0.3;
+    if (strategy === 'escape_hatch' || confidence < lowThreshold) {
+      console.log(`🚨 Low confidence route (<${lowThreshold}): Going directly to response synthesis (escape hatch)`);
+      return NODE_NAMES.RESPONSE_SYNTHESIS;
+    }
+
+    // OPTIMIZATION: Skip fact-checking unless enabled and needed
+    if (config.enableFactChecking && strategy === 'full_answer' && sopCount > 2 && confidence >= 0.6 && confidence <= highThreshold) {
+      console.log('🔍 Medium confidence with multiple SOPs: Using fact checking');
+      return NODE_NAMES.FACT_CHECKING;
+    }
+
+    // OPTIMIZATION: Skip source validation unless enabled and there are significant gaps
+    if (config.enableSourceValidation && strategy === 'partial_answer' && gapCount > 1 && sopCount > 1 && confidence >= 0.5) {
+      console.log('📋 Partial answer with gaps: Using source validation');
+      return NODE_NAMES.SOURCE_VALIDATION;
+    }
+
+    // OPTIMIZATION: Skip follow-up generation unless specifically enabled
+    if (config.enableFollowUpGeneration && strategy === 'escape_hatch' && gapCount > 3 && sopCount === 0) {
+      console.log('❓ No SOPs found with many gaps: Generating follow-up questions');
+      return NODE_NAMES.FOLLOW_UP_GENERATION;
+    }
+
+    // Default: Skip to response synthesis (most common path)
+    console.log('✨ Optimized route: Going to response synthesis');
+    return NODE_NAMES.RESPONSE_SYNTHESIS;
+  };
+}
+
+/**
+ * Early exit routing after SOP assessment for extremely high confidence cases
+ */
+function createOptimizedSOPRouter(config: WorkflowConfig = DEFAULT_WORKFLOW_CONFIG) {
+  return function routeAfterSOPAssessment(state: WorkflowState): string {
+  // Handle error cases
+  if (StateValidators.hasErrors(state) && StateValidators.shouldRetry(state)) {
+    return NODE_NAMES.QUERY_ANALYSIS;
   }
 
-  // Medium confidence with gaps and multiple SOPs -> source validation
-  if (strategy === 'partial_answer' && gapCount > 0 && sopCount > 1) {
-    return NODE_NAMES.SOURCE_VALIDATION;
+  if (state.shouldExit) {
+    return END;
   }
 
-  // Low confidence with multiple gaps -> follow-up generation
-  if (strategy === 'escape_hatch' && gapCount > 2) {
-    return NODE_NAMES.FOLLOW_UP_GENERATION;
-  }
+  // Get confidence and strategy from SOP assessment
+  const confidence = state.coverageAnalysis.overallConfidence || 0;
+  const strategy = state.coverageAnalysis.responseStrategy;
+  const sopCount = state.sopReferences.length;
+  const gapCount = state.coverageAnalysis.gaps?.length || 0;
 
-  // Default to response synthesis
-  return NODE_NAMES.RESPONSE_SYNTHESIS;
+  console.log('Early exit evaluation after SOP assessment:', {
+    confidence,
+    strategy,
+    sopCount,
+    gapCount
+  });
+
+    // SUPER OPTIMIZATION: Skip coverage evaluation for extremely confident cases
+    const superHighThreshold = config.superHighConfidenceThreshold || 0.9;
+    if (config.enableEarlyExit && confidence > superHighThreshold && strategy === 'full_answer' && gapCount === 0 && sopCount >= 1) {
+      console.log(`⚡ SUPER HIGH CONFIDENCE (>${superHighThreshold}): Skipping coverage evaluation, going directly to response`);
+      return NODE_NAMES.RESPONSE_SYNTHESIS;
+    }
+
+    // Normal flow: proceed to coverage evaluation
+    return NODE_NAMES.COVERAGE_EVALUATION;
+  };
 }
 
 /**
@@ -115,9 +197,9 @@ function wrapNodeWithErrorHandling<T extends WorkflowState>(
 }
 
 /**
- * Create the main workflow graph
+ * Create the main workflow graph with configuration
  */
-export function createWorkflowGraph() {
+export function createWorkflowGraph(config: WorkflowConfig = DEFAULT_WORKFLOW_CONFIG) {
   // Create the state graph
   const workflow = new StateGraph<WorkflowState>({
     channels: {
@@ -178,17 +260,32 @@ export function createWorkflowGraph() {
     wrapNodeWithErrorHandling(responseSynthesisNode, NODE_NAMES.RESPONSE_SYNTHESIS)
   );
 
-  // Define the workflow edges (linear path with conditional routing)
+  // Define the workflow edges (optimized routing with early exits)
   workflow.setEntryPoint(NODE_NAMES.QUERY_ANALYSIS);
   
-  // Linear flow through core analysis
+  // Flow from query analysis to SOP assessment
   workflow.addEdge(NODE_NAMES.QUERY_ANALYSIS, NODE_NAMES.SOP_ASSESSMENT);
-  workflow.addEdge(NODE_NAMES.SOP_ASSESSMENT, NODE_NAMES.COVERAGE_EVALUATION);
+  
+  // Create configured routers
+  const sopRouter = createOptimizedSOPRouter(config);
+  const coverageRouter = createOptimizedCoverageRouter(config);
+
+  // OPTIMIZATION: Conditional routing after SOP assessment (can skip coverage evaluation)
+  workflow.addConditionalEdges(
+    NODE_NAMES.SOP_ASSESSMENT,
+    sopRouter,
+    {
+      [NODE_NAMES.COVERAGE_EVALUATION]: NODE_NAMES.COVERAGE_EVALUATION,
+      [NODE_NAMES.RESPONSE_SYNTHESIS]: NODE_NAMES.RESPONSE_SYNTHESIS, // Early exit option
+      [NODE_NAMES.QUERY_ANALYSIS]: NODE_NAMES.QUERY_ANALYSIS, // For retries
+      [END]: END
+    }
+  );
   
   // Conditional routing after coverage evaluation
   workflow.addConditionalEdges(
     NODE_NAMES.COVERAGE_EVALUATION,
-    routeAfterCoverageEvaluation,
+    coverageRouter,
     {
       [NODE_NAMES.FACT_CHECKING]: NODE_NAMES.FACT_CHECKING,
       [NODE_NAMES.SOURCE_VALIDATION]: NODE_NAMES.SOURCE_VALIDATION,
@@ -248,6 +345,17 @@ export interface WorkflowConfig {
   enableCheckpointing?: boolean;
   checkpointInterval?: number;
   retryLimit?: number;
+  
+  // Performance optimization settings
+  enableEarlyExit?: boolean;          // Enable early exit optimizations
+  highConfidenceThreshold?: number;   // Confidence threshold for early exits (default: 0.8)
+  superHighConfidenceThreshold?: number; // Threshold for skipping coverage evaluation (default: 0.9)
+  lowConfidenceThreshold?: number;    // Threshold for escape hatch route (default: 0.3)
+  
+  // Node skipping controls
+  enableFactChecking?: boolean;       // Enable fact checking node (default: true but selective)
+  enableSourceValidation?: boolean;   // Enable source validation node (default: true but selective)  
+  enableFollowUpGeneration?: boolean; // Enable follow-up generation node (default: false for performance)
 }
 
 export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
@@ -255,7 +363,18 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
   nodeTimeout: 30000, // 30 seconds
   enableCheckpointing: false,
   checkpointInterval: 3, // Checkpoint every 3 nodes
-  retryLimit: 3
+  retryLimit: 3,
+  
+  // Performance optimizations enabled by default
+  enableEarlyExit: true,
+  highConfidenceThreshold: 0.8,
+  superHighConfidenceThreshold: 0.9,
+  lowConfidenceThreshold: 0.3,
+  
+  // Selective node enabling (optimized for performance)
+  enableFactChecking: true,        // Enabled but selective
+  enableSourceValidation: true,    // Enabled but selective
+  enableFollowUpGeneration: false  // Disabled by default for performance
 };
 
 /**
@@ -273,7 +392,7 @@ export interface WorkflowExecutionOptions {
  * Create workflow with configuration
  */
 export function createConfiguredWorkflow(config: WorkflowConfig = DEFAULT_WORKFLOW_CONFIG) {
-  const workflow = createWorkflowGraph();
+  const workflow = createWorkflowGraph(config);
   
   // Apply configuration
   if (config.maxIterations) {

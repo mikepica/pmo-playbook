@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { WorkflowState, StateHelpers, SOPReference } from '../state';
 import { HumanSOP } from '@/models/HumanSOP';
+import { getAllActiveSOPs, getSOPCacheStats } from '@/lib/sop-cache';
 import { getGPT5SystemPrompt, getModelName } from '../gpt5-config';
 
 /**
@@ -18,10 +19,18 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
       keyTopics: state.coverageAnalysis.keyTopics 
     });
 
-    // Get all available SOPs and cache them for other nodes
-    const humanSOPs = await HumanSOP.getAllActiveSOPs();
+    // Get all available SOPs from cache (performance optimized)
+    const cacheStats = getSOPCacheStats();
+    console.log('SOP cache stats before assessment:', {
+      totalSOPs: cacheStats.totalSOPs,
+      cacheHits: cacheStats.cacheHits,
+      cacheMisses: cacheStats.cacheMisses,
+      memoryUsageMB: cacheStats.memoryUsageMB
+    });
+
+    const sopEntries = await getAllActiveSOPs();
     
-    if (humanSOPs.length === 0) {
+    if (sopEntries.length === 0) {
       return {
         ...StateHelpers.addError(state, 'No SOPs available in database'),
         coverageAnalysis: {
@@ -36,17 +45,33 @@ export async function sopAssessmentNode(state: WorkflowState): Promise<Partial<W
       };
     }
 
-    // Create SOP cache for performance optimization
-    const sopCache = new Map(humanSOPs.map(sop => [sop.sopId, sop]));
-    console.log('SOP cache created with', sopCache.size, 'SOPs:', Array.from(sopCache.keys()));
+    // Create legacy SOP cache for downstream nodes that expect HumanSOPRecord format
+    // Convert cache entries back to HumanSOPRecord format for compatibility
+    const legacySOPCache = new Map();
+    for (const entry of sopEntries) {
+      const legacyRecord = {
+        sopId: entry.sopId,
+        data: {
+          title: entry.title,
+          markdownContent: entry.fullContent
+        }
+      };
+      legacySOPCache.set(entry.sopId, legacyRecord);
+    }
+    
+    console.log('SOP assessment using cached data:', {
+      sopCount: sopEntries.length,
+      sopIds: sopEntries.map(s => s.sopId),
+      cacheHitRate: cacheStats.cacheHits / (cacheStats.cacheHits + cacheStats.cacheMisses) * 100
+    });
 
     // Build SOP summaries for analysis - send COMPLETE content
-    const sopSummaries = humanSOPs.map(sop => {
+    const sopSummaries = sopEntries.map(entry => {
       // Send the FULL content - no truncation at all
-      const fullContent = sop.data.markdownContent;
+      const fullContent = entry.fullContent;
       
-      return `- SOP ID: ${sop.sopId}
-   Title: "${sop.data.title}"
+      return `- SOP ID: ${entry.sopId}
+   Title: "${entry.title}"
    Full Content: "${fullContent}"`;
     }).join('\n\n');
 
@@ -126,11 +151,11 @@ ${sopSummaries}`;
     // Parse XML response using existing logic
     const { sopReferences, coverageAnalysis } = parseSOPAnalysisXML(xmlContent);
 
-    // Fill in SOP titles from database
+    // Fill in SOP titles from cache
     for (const ref of sopReferences) {
-      const sop = humanSOPs.find(s => s.sopId === ref.sopId);
-      if (sop) {
-        ref.title = sop.data.title;
+      const entry = sopEntries.find(s => s.sopId === ref.sopId);
+      if (entry) {
+        ref.title = entry.title;
       }
     }
 
@@ -161,7 +186,7 @@ ${sopSummaries}`;
       ...StateHelpers.markNodeComplete(finalState, 'sopAssessment'),
       sopReferences,
       coverageAnalysis,
-      cachedSOPs: sopCache,
+      cachedSOPs: legacySOPCache,
       currentNode: 'coverageEvaluation'
     };
 

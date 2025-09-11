@@ -1,4 +1,5 @@
 import { PostgresModel } from '@/lib/postgres';
+import { invalidateSOPCache } from '@/lib/sop-cache';
 
 export interface HumanSOPData {
   title: string;
@@ -75,6 +76,13 @@ export class HumanSOPModel extends PostgresModel {
     
     const record = this.mapToRecord(result);
     
+    // Invalidate cache for new SOP
+    try {
+      await invalidateSOPCache(sopId);
+    } catch (error) {
+      console.warn('Failed to invalidate SOP cache after create:', error);
+    }
+    
     // TODO: Re-enable SOP directory update after fixing AI config issues
     // try {
     //   await updateSOPDirectoryOnChange('create', sopId);
@@ -124,6 +132,13 @@ export class HumanSOPModel extends PostgresModel {
     if (results.length > 0) {
       const record = this.mapToRecord(results[0]);
       
+      // Invalidate cache for updated SOP
+      try {
+        await invalidateSOPCache(sopId);
+      } catch (error) {
+        console.warn('Failed to invalidate SOP cache after update:', error);
+      }
+      
       // TODO: Re-enable SOP directory update after fixing AI config issues
       // try {
       //   await updateSOPDirectoryOnChange('update', sopId);
@@ -143,6 +158,13 @@ export class HumanSOPModel extends PostgresModel {
     );
     
     if (results.length > 0) {
+      // Invalidate cache for deleted SOP
+      try {
+        await invalidateSOPCache(sopId);
+      } catch (error) {
+        console.warn('Failed to invalidate SOP cache after delete:', error);
+      }
+      
       // TODO: Re-enable SOP directory update after fixing AI config issues
       // try {
       //   await updateSOPDirectoryOnChange('delete', sopId);
