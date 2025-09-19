@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
+import { streamJsonResponse } from '@/lib/http/streaming';
 import { ChatHistory } from '@/models/ChatHistory';
 import { ChatOpenAI } from '@langchain/openai';
 import { getModelName } from '@/lib/langgraph/gpt5-config';
+
+const INLINE_SUMMARY_LIMIT = Number(process.env.SESSION_SUMMARY_INLINE_LIMIT ?? '3');
+const SUMMARY_TIME_BUDGET_MS = Number(process.env.SESSION_SUMMARY_TIME_BUDGET_MS ?? '45000');
+const KEEP_EXISTING_SUMMARY_PLACEHOLDER = 'Conversation';
 
 // GET all sessions for the user (with summaries)
 export async function GET(request: Request) {
@@ -9,58 +14,97 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '20');
     const analytics = searchParams.get('analytics');
-    
-    // Database connection handled by model
-    
-    // Return analytics data
+    const currentSessionId = searchParams.get('currentSessionId');
+
     if (analytics === 'true') {
-      // Get basic session stats
-      const activeSessions = await ChatHistory.getActiveSessions(1000); // Get all active sessions
+      const activeSessions = await ChatHistory.getActiveSessions(1000);
       const totalSessions = activeSessions.length;
       const totalMessages = activeSessions.reduce((sum, session) => sum + session.data.messages.length, 0);
       const avgMessagesPerSession = totalMessages / (totalSessions || 1);
-      
-      // Get SOP usage stats
+
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const sopUsageStats = await ChatHistory.getSOPUsageStats(sevenDaysAgo);
       const sopUsageFrequency = sopUsageStats.reduce((acc, stat) => ({ ...acc, [stat.sopId]: stat.totalUsage }), {});
-      
+
       return NextResponse.json({
         totalSessions,
         totalMessages,
         avgMessagesPerSession: Math.round(avgMessagesPerSession * 10) / 10,
         sopUsageFrequency,
-        recentActivity: [] // Simplified for now
+        recentActivity: []
       });
     }
 
-    // Get recent sessions, ordered by lastActive
-    const sessions = await ChatHistory.getActiveSessions(limit);
+    const handler = async () => {
+      const sessions = await ChatHistory.getActiveSessions(limit);
+      const formattedSessions: Array<{
+        sessionId: string;
+        name: string;
+        summary: string;
+        messageCount: number;
+        startedAt: Date;
+        lastActive: Date;
+        isActive: boolean;
+      }> = [];
 
-    // Format sessions for dropdown
-    const formattedSessions = await Promise.all(sessions.map(async (session) => {
-      // Generate summary if it doesn't exist
-      let summary = session.data.summary;
-      if (!summary && session.data.messages.length > 0) {
-        summary = await generateSessionSummary({ messages: session.data.messages });
-        // TODO: Save the summary for future use
+      const startedAt = Date.now();
+      let summariesGenerated = 0;
+
+      for (const session of sessions) {
+        let summary = session.data.summary;
+        const messages = session.data.messages || [];
+
+        if (
+          !summary &&
+          messages.length > 0 &&
+          summariesGenerated < INLINE_SUMMARY_LIMIT &&
+          Date.now() - startedAt < SUMMARY_TIME_BUDGET_MS
+        ) {
+          summariesGenerated += 1;
+          try {
+            summary = await generateSessionSummary({ messages });
+            if (summary && summary !== KEEP_EXISTING_SUMMARY_PLACEHOLDER) {
+              ChatHistory.updateSessionSummary(session.sessionId, summary).catch(err => {
+                console.warn('Failed to persist session summary:', err);
+              });
+            }
+          } catch (summaryError) {
+            console.warn('Session summary generation failed:', summaryError);
+          }
+        }
+
+        const fallbackSummary = buildFallbackSummary(messages);
+        const resolvedSummary = summary && summary.trim().length > 0 ? summary : fallbackSummary;
+
+        formattedSessions.push({
+          sessionId: session.sessionId,
+          name: session.data.sessionName || resolvedSummary || 'Untitled Session',
+          summary: resolvedSummary || 'No summary available',
+          messageCount: messages.length,
+          startedAt: session.startedAt,
+          lastActive: session.lastActive || session.startedAt,
+          isActive: session.sessionId === currentSessionId
+        });
       }
 
       return {
-        sessionId: session.sessionId,
-        name: session.data.sessionName || summary || 'Untitled Session',
-        summary: summary || 'No summary available',
-        messageCount: session.data.messages.length,
-        startedAt: session.startedAt,
-        lastActive: session.lastActive || session.startedAt,
-        isActive: session.sessionId === searchParams.get('currentSessionId')
+        body: {
+          sessions: formattedSessions,
+          total: formattedSessions.length
+        }
       };
-    }));
+    };
 
-    return NextResponse.json({
-      sessions: formattedSessions,
-      total: formattedSessions.length
+    return streamJsonResponse(handler, {
+      onError: (error: unknown) => {
+        console.error('Error fetching sessions:', error);
+        return {
+          body: {
+            error: 'Failed to fetch sessions'
+          }
+        };
+      }
     });
 
   } catch (error: unknown) {
@@ -201,15 +245,29 @@ Summary:`;
       ]);
 
       const summary = (response.content as string)?.trim() || 'Conversation';
-      return summary.replace(/['"]/g, ''); // Remove quotes if any
+      return summary.replace(/['"]/g, '');
     } catch (aiError) {
       console.warn('Failed to generate AI summary:', aiError);
-      // Fallback to extracting key words from first message
-      const firstWords = userMessages.split(' ').slice(0, 5).join(' ');
-      return firstWords.length > 30 ? firstWords.substring(0, 30) + '...' : firstWords;
+      return buildFallbackSummary(session.messages);
     }
   } catch (error) {
     console.error('Error in generateSessionSummary:', error);
-    return 'Conversation';
+    return buildFallbackSummary(session.messages);
   }
+}
+
+function buildFallbackSummary(messages: Array<{ role: string; content: string }>): string {
+  if (!messages || messages.length === 0) {
+    return 'No summary available';
+  }
+
+  const userMessage = messages.find(message => message.role === 'user') || messages[0];
+  const content = userMessage?.content?.trim();
+
+  if (!content) {
+    return 'No summary available';
+  }
+
+  const normalized = content.replace(/\s+/g, ' ');
+  return normalized.length > 60 ? `${normalized.substring(0, 60)}...` : normalized;
 }

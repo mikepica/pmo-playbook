@@ -189,7 +189,11 @@ export default function ChatInterfaceAI() {
     try {
       const response = await fetch(`/api/sessions?limit=20&currentSessionId=${sessionId || ''}`);
       const data = await response.json();
-      
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       if (data.sessions) {
         setSessions(data.sessions.map((s: {
           sessionId: string;
@@ -392,7 +396,7 @@ export default function ChatInterfaceAI() {
 
       const data = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok || data.error) {
         throw new Error(data.error || 'Failed to get response');
       }
 
