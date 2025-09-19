@@ -126,10 +126,10 @@ export class ChatHistoryModel extends PostgresModel {
   async updateSessionName(sessionId: string, sessionName: string): Promise<ChatHistoryRecord | null> {
     const existing = await this.findOne({ session_id: sessionId });
     if (!existing) return null;
-    
+
     const chatData: ChatHistoryData = existing.data;
     chatData.sessionName = sessionName;
-    
+
     const results = await this.update(
       { session_id: sessionId },
       { 
@@ -137,7 +137,22 @@ export class ChatHistoryModel extends PostgresModel {
         last_active: new Date()
       }
     );
-    
+
+    return results.length > 0 ? this.mapToRecord(results[0]) : null;
+  }
+
+  async updateSummary(sessionId: string, summary: string): Promise<ChatHistoryRecord | null> {
+    const existing = await this.findOne({ session_id: sessionId });
+    if (!existing) return null;
+
+    const chatData: ChatHistoryData = existing.data;
+    chatData.summary = summary;
+
+    const results = await this.update(
+      { session_id: sessionId },
+      { data: JSON.stringify(chatData) }
+    );
+
     return results.length > 0 ? this.mapToRecord(results[0]) : null;
   }
 

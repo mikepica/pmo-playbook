@@ -1,10 +1,11 @@
 import OpenAI from 'openai';
 import { HumanSOP } from '@/models/HumanSOP';
-import { 
+import {
   getAIConfig,
-  getPrompt, 
+  getPrompt,
   debugLog
 } from './ai-config';
+import { executeWithTimeout, TimeoutError } from '@/lib/utils/async-timeout';
 
 // Types for unified processing
 export interface SOPReference {
@@ -34,6 +35,24 @@ export interface UnifiedQueryResult {
 }
 
 let openai: OpenAI | null = null;
+
+const ANALYSIS_TIMEOUT_MS = Number.parseInt(process.env.AI_ANALYSIS_TIMEOUT_MS || '25000', 10);
+const ANSWER_TIMEOUT_MS = Number.parseInt(process.env.AI_ANSWER_TIMEOUT_MS || '25000', 10);
+
+function buildEscapeHatchMessage(topic: string, gaps: string[] = []): string {
+  const config = getAIConfig();
+  const escapeMessage = config.escape_hatch?.message_template ||
+    "The Playbook does not explicitly provide guidance for {topic}.\n\n📝 This appears to be a gap in our Playbook. Please leave feedback so we can add appropriate guidance for this topic.";
+
+  const sanitizedTopic = topic && topic !== 'Unknown intent' ? topic : 'this topic';
+  const partialInfo = gaps.length > 0
+    ? gaps.map((gap) => `• ${gap}`).join('\n')
+    : 'No related SOP guidance available yet.';
+
+  return escapeMessage
+    .replace('{topic}', sanitizedTopic)
+    .replace('{partial_info}', partialInfo);
+}
 
 function getOpenAIClient(): OpenAI {
   if (!process.env.OPENAI_API_KEY) {
@@ -192,13 +211,17 @@ ${sopSummaries}`;
 
     // Make AI call
     const client = getOpenAIClient();
-    const response = await client.chat.completions.create({
-      model: config.sop_selection?.model || config.processing?.model || 'gpt-5',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: fullPrompt }
-      ]
-    });
+    const response = await executeWithTimeout(
+      (signal) => client.chat.completions.create({
+        model: config.sop_selection?.model || config.processing?.model || 'gpt-5',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: fullPrompt }
+        ]
+      }, { signal }),
+      ANALYSIS_TIMEOUT_MS,
+      'AI_SOP_ANALYSIS_TIMEOUT'
+    );
 
     const xmlContent = response.choices[0]?.message?.content;
     if (!xmlContent) {
@@ -230,15 +253,20 @@ ${sopSummaries}`;
     return { sopReferences, coverageAnalysis };
 
   } catch (error) {
+    const timeout = error instanceof TimeoutError && error.message === 'AI_SOP_ANALYSIS_TIMEOUT';
     console.error('Error in SOP analysis:', error);
-    
+
+    const gapMessage = timeout
+      ? 'SOP analysis timed out before completion'
+      : 'Error occurred during SOP analysis';
+
     // Return escape hatch configuration on error
     return {
       sopReferences: [],
       coverageAnalysis: {
         overallConfidence: 0.1,
         coverageLevel: 'low',
-        gaps: ['Error occurred during SOP analysis'],
+        gaps: [gapMessage],
         responseStrategy: 'escape_hatch',
         queryIntent: userQuery,
         keyTopics: []
@@ -262,7 +290,11 @@ async function generateUnifiedAnswer(
     const config = getAIConfig();
     const systemPrompt = getPrompt('system_answer');
     const generationPrompt = getPrompt('answer_generation_unified');
-    
+
+    if (sopReferences.length === 0 || coverageAnalysis.responseStrategy === 'escape_hatch') {
+      return buildEscapeHatchMessage(coverageAnalysis.queryIntent || userQuery, coverageAnalysis.gaps);
+    }
+
     // Get full SOP content for referenced SOPs
     const fullSOPContent = await Promise.all(
       sopReferences.map(async (ref) => {
@@ -327,13 +359,17 @@ ${sopContentString}`;
 
     // Make AI call
     const client = getOpenAIClient();
-    const response = await client.chat.completions.create({
-      model: config.processing?.model || 'gpt-5',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: fullPrompt }
-      ]
-    });
+    const response = await executeWithTimeout(
+      (signal) => client.chat.completions.create({
+        model: config.processing?.model || 'gpt-5',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: fullPrompt }
+        ]
+      }, { signal }),
+      ANSWER_TIMEOUT_MS,
+      'AI_UNIFIED_ANSWER_TIMEOUT'
+    );
 
     const answer = response.choices[0]?.message?.content;
     if (!answer) {
@@ -349,13 +385,15 @@ ${sopContentString}`;
 
   } catch (error) {
     console.error('Error in answer generation:', error);
-    
+
+    if (error instanceof TimeoutError && error.message === 'AI_UNIFIED_ANSWER_TIMEOUT') {
+      debugLog('log_xml_processing', 'Unified answer generation timed out, returning escape hatch', {
+        query: userQuery
+      });
+    }
+
     // Fallback to escape hatch message
-    const config = getAIConfig();
-    const escapeMessage = config.escape_hatch?.message_template || 
-      "The Playbook does not explicitly provide guidance for {topic}.\n\n📝 This appears to be a gap in our Playbook. Please leave feedback so we can add appropriate guidance for this topic.";
-    
-    return escapeMessage.replace('{topic}', coverageAnalysis.queryIntent);
+    return buildEscapeHatchMessage(coverageAnalysis.queryIntent || userQuery, coverageAnalysis.gaps);
   }
 }
 
